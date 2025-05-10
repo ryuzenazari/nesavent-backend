@@ -12,6 +12,7 @@ NesaVent adalah platform penjualan tiket event untuk komunitas kampus di Surabay
 - Verifikasi Mahasiswa Fleksibel
 - Fitur Sosial & Engagement
 - Sistem keamanan dan compliance
+- Optimisasi performa dan caching
 
 ## User Roles
 
@@ -27,6 +28,7 @@ NesaVent adalah platform penjualan tiket event untuk komunitas kampus di Surabay
 - MongoDB
 - NPM atau Yarn
 - Akun Midtrans (untuk payment gateway)
+- Redis (opsional, untuk rate limiting yang lebih baik)
 
 ## Installation
 
@@ -65,6 +67,9 @@ MIDTRANS_SNAP_URL=https://app.sandbox.midtrans.com/snap/snap.js
 # Google OAuth
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Redis Configuration (optional)
+REDIS_URL=redis://localhost:6379
 ```
 
 ### 4. Setup Direktori Uploads
@@ -240,6 +245,16 @@ npm run seed:db
 - Performance metrics untuk event
 - Export data ke CSV/PDF
 
+### Optimisasi & Performance
+- Caching system untuk data yang sering diakses
+- Image optimization untuk banner event
+- Database indexing untuk query yang sering digunakan
+- Rate limiting yang lebih spesifik per endpoint
+- HTTP compression untuk respon server
+- Redis integration untuk rate limiting dan caching
+- Query optimization dengan pagination dan filtering
+- Lazy loading untuk gambar dan data
+
 ## API Endpoints
 
 ### Authentication
@@ -351,6 +366,9 @@ npm run seed:db
 - **Security**: Bcrypt, Helmet
 - **Email**: Nodemailer
 - **Payment**: Midtrans Gateway
+- **Caching**: Node-cache, Redis
+- **Image Processing**: Sharp
+- **Compression**: Compression middleware
 
 ## Struktur Folder
 

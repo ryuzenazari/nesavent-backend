@@ -7,6 +7,8 @@ const path = require('path');
 const mongoose = require('mongoose');
 const shortLinkService = require('../services/shortLinkService');
 const eventService = require('../services/eventService');
+const cacheService = require('../services/cacheService');
+const imageOptimization = require('../services/imageOptimizationService');
 const createEvent = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -90,87 +92,89 @@ const createEvent = async (req, res) => {
 };
 const getAllEvents = async (req, res) => {
   try {
-    const { category, search, startDate, endDate, sort = 'date', order = 'asc' } = req.query;
-    const query = {
-      isActive: true
+    const cacheKey = `events_${JSON.stringify(req.query)}`;
+    const cachedEvents = cacheService.get(cacheKey);
+    
+    if (cachedEvents) {
+      return res.json(cachedEvents);
+    }
+    
+    let query = {};
+    
+    if (req.query.search) {
+      query.$text = { $search: req.query.search };
+    }
+    
+    if (req.query.category) {
+      query.categories = req.query.category;
+    }
+    
+    if (req.query.location) {
+      query['location.city'] = req.query.location;
+    }
+    
+    if (req.query.date) {
+      const date = new Date(req.query.date);
+      const nextDay = new Date(date);
+      nextDay.setDate(date.getDate() + 1);
+      
+      query.date = { $gte: date, $lt: nextDay };
+    }
+    
+    query.isPublished = true;
+    
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    
+    const events = await Event.find(query)
+      .populate('creator', 'username _id profilePicture')
+      .sort({ date: 1 })
+      .skip(skip)
+      .limit(limit);
+    
+    const total = await Event.countDocuments(query);
+    
+    const result = {
+      events,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
     };
-    if (category) {
-      query.category = category;
-    }
-    if (search) {
-      query.$or = [
-        {
-          title: {
-            $regex: search,
-            $options: 'i'
-          }
-        },
-        {
-          description: {
-            $regex: search,
-            $options: 'i'
-          }
-        },
-        {
-          location: {
-            $regex: search,
-            $options: 'i'
-          }
-        },
-        {
-          organizer: {
-            $regex: search,
-            $options: 'i'
-          }
-        }
-      ];
-    }
-    if (startDate && endDate) {
-      query.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    } else if (startDate) {
-      query.date = {
-        $gte: new Date(startDate)
-      };
-    } else if (endDate) {
-      query.date = {
-        $lte: new Date(endDate)
-      };
-    }
-    const sortOption = {};
-    sortOption[sort] = order === 'desc' ? -1 : 1;
-    const events = await Event.find(query).sort(sortOption).select('-__v');
-    res.status(200).json({
-      count: events.length,
-      events
-    });
+    
+    cacheService.set(cacheKey, result, 300); // Cache for 5 minutes
+    
+    res.json(result);
   } catch (error) {
-    logger.error(`Get events error: ${error.message}`);
-    res.status(500).json({
-      message: 'Gagal mengambil daftar event',
-      error: error.message
-    });
+    res.status(500).json({ message: "Error fetching events", error: error.message });
   }
 };
 const getEventById = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id);
-    if (!event) {
-      return res.status(404).json({
-        message: 'Event tidak ditemukan'
-      });
+    const eventId = req.params.id;
+    const cacheKey = `${cacheService.CACHE_KEYS.EVENT_DETAILS}${eventId}`;
+    
+    const cachedEvent = cacheService.get(cacheKey);
+    if (cachedEvent) {
+      return res.json(cachedEvent);
     }
-    res.status(200).json({
-      event
-    });
+    
+    const event = await Event.findById(eventId)
+      .populate('creator', 'username email profilePicture')
+      .populate('ticketTypes');
+      
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+    
+    cacheService.set(cacheKey, event, 600); // Cache for 10 minutes
+    
+    res.json(event);
   } catch (error) {
-    logger.error(`Get event by ID error: ${error.message}`);
-    res.status(500).json({
-      message: 'Gagal mengambil detail event',
-      error: error.message
-    });
+    res.status(500).json({ message: "Error fetching event", error: error.message });
   }
 };
 const updateEvent = async (req, res) => {

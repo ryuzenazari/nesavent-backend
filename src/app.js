@@ -26,6 +26,9 @@ const feedbackRoutes = require('./routes/feedbackRoutes');
 const socialShareRoutes = require('./routes/socialShareRoutes');
 const creatorFollowRoutes = require('./routes/creatorFollowRoutes');
 const abuseReportRoutes = require('./routes/abuseReportRoutes');
+const compression = require('compression');
+const { createIndexes } = require('./models/indexes');
+const { rateLimiters } = require('./middleware/rateLimiter');
 const app = express();
 const PORT = process.env.PORT || 5000;
 app.set('view engine', 'ejs');
@@ -41,6 +44,7 @@ app.use(helmet());
 app.use(morgan('dev'));
 app.use(passport.initialize());
 app.use(loggerMiddleware);
+app.use(compression());
 const eventUploadDir = path.join(__dirname, '../uploads/events');
 const profileUploadDir = path.join(__dirname, '../uploads/profiles');
 const documentUploadDir = path.join(__dirname, '../uploads/documents');
@@ -73,6 +77,13 @@ app.use('/uploads/events', express.static(path.join(__dirname, '../uploads/event
 app.use('/uploads/profiles', express.static(path.join(__dirname, '../uploads/profiles')));
 app.use('/uploads/documents', express.static(path.join(__dirname, '../uploads/documents')));
 app.use(generalLimiter);
+app.use('/api/auth/login', rateLimiters.auth);
+app.use('/api/auth/register', rateLimiters.register);
+app.use('/api/events', rateLimiters.events);
+app.use('/api/tickets', rateLimiters.tickets);
+app.use('/api/payment', rateLimiters.payments);
+app.use('/api/auth/profile', rateLimiters.profile);
+app.use(['/api/events/upload', '/api/auth/profile/image'], rateLimiters.uploads);
 app.get('/', (req, res) => {
   res.json({
     message: 'Selamat datang di API NesaVent',
@@ -115,40 +126,22 @@ app.use((error, req, res, next) => {
     message: error.message || 'Terjadi kesalahan pada server'
   });
 });
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    logger.info('Terhubung ke MongoDB');
-    return true;
-  } catch (err) {
-    logger.error('Gagal terhubung ke MongoDB', {
-      error: err.message
-    });
-    return false;
-  }
-};
-const startServer = () => {
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(async () => {
+  console.log('Connected to MongoDB');
+  
+  // Create database indexes
+  await createIndexes();
+  
   app.listen(PORT, () => {
-    logger.info(`Server berjalan pada port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
   });
-};
-if (require.main === module) {
-  connectDB()
-    .then(success => {
-      if (success) {
-        startServer();
-      } else {
-        process.exit(1);
-      }
-    })
-    .catch(err => {
-      logger.error('Error saat koneksi/memulai server', {
-        error: err.message
-      });
-      process.exit(1);
-    });
-}
-module.exports = {
-  app,
-  connectDB
-};
+})
+.catch(err => {
+  console.error('MongoDB connection error:', err);
+  process.exit(1);
+});
+module.exports = app;
