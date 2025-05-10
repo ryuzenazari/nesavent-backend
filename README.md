@@ -65,7 +65,6 @@ MIDTRANS_SERVER_KEY=SB-Mid-server-XXXXXXXXXXXXXXXX
 MIDTRANS_IS_PRODUCTION=false
 MIDTRANS_SNAP_URL=https://app.sandbox.midtrans.com/snap/snap.js
 MIDTRANS_MERCHANT_ID=G12345678
-FRONTEND_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
@@ -138,6 +137,11 @@ Credentials untuk semua user dalam data awal ini:
 ### Payments
 - `POST /api/payment/notification` - Callback notification dari Midtrans
 - `GET /api/payment/status/:id` - Check payment status
+
+### Notifications
+- `GET /api/notifications` - Mendapatkan daftar notifikasi user
+- `PATCH /api/notifications/:notificationId/read` - Menandai notifikasi sebagai telah dibaca
+- `PATCH /api/notifications/read-all` - Menandai semua notifikasi sebagai telah dibaca
 
 ## Testing
 
@@ -214,6 +218,30 @@ Syarat untuk mentransfer tiket:
 - Penerima harus memiliki akun yang terdaftar di NesaVent
 
 API untuk transfer tiket tersedia melalui endpoint `POST /api/tickets/:id/transfer` dengan parameter `recipientEmail`.
+
+## Notification System
+
+NesaVent memiliki sistem notifikasi yang komprehensif untuk memastikan pengguna selalu mendapat informasi terkini tentang aktivitas mereka di platform.
+
+### Jenis Notifikasi
+- **Event Approval** - Notifikasi untuk admin ketika ada event gratis baru yang membutuhkan persetujuan
+- **Ticket Purchase** - Konfirmasi pembelian tiket
+- **Payment Confirmation** - Konfirmasi pembayaran berhasil
+- **Ticket Transfer** - Notifikasi untuk pengirim dan penerima saat tiket ditransfer
+- **Event Reminder** - Pengingat event yang akan datang
+
+### Fitur Notifikasi
+- Notifikasi real-time di aplikasi
+- Email notification untuk informasi penting
+- Status dibaca/belum dibaca
+- Pagination untuk daftar notifikasi
+- Mark as read untuk notifikasi individual
+- Mark all as read untuk semua notifikasi
+
+### API Endpoints
+- `GET /api/notifications` - Mendapatkan daftar notifikasi user
+- `PATCH /api/notifications/:notificationId/read` - Menandai notifikasi sebagai telah dibaca
+- `PATCH /api/notifications/read-all` - Menandai semua notifikasi sebagai telah dibaca
 
 ## Social Login Feature
 
