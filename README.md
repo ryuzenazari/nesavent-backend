@@ -1,0 +1,312 @@
+# NesaVent - Platform Ticketing untuk Event Kampus
+
+NesaVent adalah platform penjualan tiket event untuk komunitas kampus di Surabaya. Aplikasi ini dikembangkan oleh mahasiswa sebagai proyek independen, dibangun dengan Express.js dan MongoDB, serta terintegrasi dengan Midtrans untuk payment.
+
+> **Pernyataan**: NesaVent adalah platform independen yang dibuat oleh mahasiswa dan tidak terafiliasi secara resmi dengan Universitas Negeri Surabaya (UNESA).
+
+## Features
+
+- Authentication user dengan berbagai role (user, student, creator, staff_creator, admin)
+- **Login with Google** (NEW!)
+- Management event (list, detail, search)
+- Booking dan purchase ticket
+- **Custom ticket types** yang dapat dikonfigurasi oleh creator (name, description, price, quota, dan benefit)
+- Payment system terintegrasi Midtrans
+- User dashboard untuk melihat ticket yang dibeli
+- Profile picture untuk user
+- Banner/poster untuk event
+- QR code untuk validasi ticket
+- Email notification untuk konfirmasi registration, payment, dan informasi event
+- Email verification untuk user
+- API security dengan rate limiting
+- Activity logging
+- **Short Link system untuk sharing event** (NEW!)
+- **Transfer ticket ke pengguna lain** (NEW!)
+
+## User Roles
+
+- **User**: User umum yang dapat membeli regular ticket
+- **Student**: Student (diverifikasi melalui email domain kampus) yang dapat membeli ticket dengan harga khusus
+- **Creator**: Event creator yang dapat membuat dan mengelola event mereka sendiri
+- **Staff Creator**: Staff yang dapat membuat dan mengelola semua event 
+- **Admin**: System administrator dengan full access
+
+## Requirements
+
+- Node.js (v14+)
+- MongoDB
+- NPM atau Yarn
+- Akun Midtrans (untuk payment gateway)
+
+## Installation
+
+1. Clone repository ini
+```
+git clone https://github.com/username/nesavent.git
+cd nesavent
+```
+
+2. Install dependencies
+```
+npm install
+```
+
+3. Buat file `.env` sesuai dengan contoh berikut:
+```
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/nesavent
+JWT_SECRET=nesavent_jwt_secret_key
+JWT_EXPIRES_IN=7d
+EMAIL_SERVICE=gmail
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+MIDTRANS_CLIENT_KEY=SB-Mid-client-XXXXXXXXXXXXXXXX
+MIDTRANS_SERVER_KEY=SB-Mid-server-XXXXXXXXXXXXXXXX
+MIDTRANS_IS_PRODUCTION=false
+MIDTRANS_SNAP_URL=https://app.sandbox.midtrans.com/snap/snap.js
+MIDTRANS_MERCHANT_ID=G12345678
+FRONTEND_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+4. Buat direktori uploads
+```
+mkdir -p uploads/events uploads/profiles uploads/documents
+```
+
+5. Jalankan server
+```
+npm run dev
+```
+
+Server akan berjalan di `http://localhost:5000`
+
+## Seeding Database
+
+Untuk mengisi database dengan data awal untuk testing, jalankan:
+
+```
+npm run seed:db
+```
+
+Ini akan mengisi database dengan:
+- User dengan berbagai role (admin, creator, staff, student, user)
+- Event dengan custom ticket types
+- Ticket yang sudah dibeli
+
+Credentials untuk semua user dalam data awal ini:
+- Password: `password123`
+- Email: lihat di terminal atau kode `seedDb.js`
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Register akun baru
+- `POST /api/auth/login` - Login
+- `GET /api/auth/google` - Login dengan Google (NEW!)
+- `GET /api/auth/google/callback` - Callback untuk login Google (NEW!)
+- `GET /api/auth/verify-email/:token` - Verify email user
+- `POST /api/auth/resend-verification` - Kirim ulang verification email
+- `GET /api/auth/profile` - Lihat user profile
+- `PUT /api/auth/profile` - Update user profile
+- `POST /api/auth/profile/image` - Upload profile picture
+- `POST /api/auth/forgot-password` - Request password reset
+- `POST /api/auth/reset-password/:token` - Reset password
+- `PUT /api/auth/role` - Update user role (Admin only)
+
+### Events
+- `GET /api/events` - Get semua event
+- `GET /api/events/my-events` - Get event yang dibuat oleh user yang login (Creator, Staff Creator, Admin)
+- `GET /api/events/:id` - Get detail event
+- `POST /api/events` - Create event baru (Creator, Staff Creator, Admin)
+  - Support upload image dan banner event (multipart/form-data)
+- `PUT /api/events/:id` - Update event (Event Owner, Staff Creator, Admin)
+  - Support update image dan banner event (multipart/form-data)
+- `DELETE /api/events/:id` - Delete event (Event Owner, Staff Creator, Admin)
+- `POST /api/events/ticket-types` - Manage custom ticket types (Creator, Admin)
+
+### Tickets
+- `POST /api/tickets` - Purchase ticket
+- `GET /api/tickets` - Get semua ticket user
+- `GET /api/tickets/:id` - Get detail ticket
+- `POST /api/tickets/:id/resend-email` - Kirim ulang confirmation email ticket
+- `PUT /api/tickets/:id/cancel` - Cancel ticket
+- `POST /api/tickets/:id/transfer` - Transfer ticket ke pengguna lain (NEW!)
+- `POST /api/tickets/validate` - Validate ticket QR code (Staff Creator, Admin)
+
+### Payments
+- `POST /api/payment/notification` - Callback notification dari Midtrans
+- `GET /api/payment/status/:id` - Check payment status
+
+## Testing
+
+Aplikasi ini dilengkapi dengan berbagai jenis testing:
+
+### API Testing
+```
+npm run test:api
+```
+Menjalankan automated testing untuk semua API endpoints utama, termasuk authentication, event management, custom ticket types, dan ticket purchasing.
+
+### Comprehensive Testing
+```
+npm run test:comprehensive
+```
+Comprehensive testing yang memeriksa semua aspek aplikasi, termasuk user data, events, custom ticket types, dan simulasi ticket purchasing.
+
+### All Features Testing
+```
+npm run test:all
+```
+Menjalankan semua testing (comprehensive dan API) secara berurutan.
+
+Atau gunakan script untuk menjalankan semua testing satu per satu:
+```
+# Windows
+run-tests.bat
+
+# Linux/macOS
+./run-tests.sh
+```
+
+### Custom Ticket Testing
+```
+npm run test:tickets
+```
+Testing khusus untuk memeriksa custom tickets yang ada di database
+
+```
+npm run test:ticket-management
+```
+Testing untuk simulasi management ticket types oleh event creator
+
+## Custom Ticket Types Feature
+
+NesaVent memungkinkan event creator untuk membuat dan mengelola custom ticket types dengan:
+
+- **Name dan description** - Misalnya "VIP", "Regular", "Early Bird", dll
+- **Varied pricing** - Setiap ticket type dapat memiliki price yang berbeda
+- **Ticket quota** - Mengatur jumlah ticket yang available per type
+- **Benefits** - Mendefinisikan benefits khusus untuk setiap ticket type
+- **Active status** - Mengaktifkan atau menonaktifkan ticket types tertentu
+
+Ticket buyers dapat memilih ticket type yang sesuai dengan kebutuhan mereka, dan sistem akan mencatat benefits yang mereka dapatkan dari ticket type tersebut.
+
+## Transfer Ticket Feature
+
+NesaVent sekarang memungkinkan pengguna untuk mentransfer tiket mereka ke pengguna lain yang terdaftar di sistem. Fitur ini berguna ketika:
+- Pengguna tidak dapat menghadiri acara dan ingin memberikan tiketnya kepada teman atau keluarga
+- Tiket dibeli untuk orang lain dan perlu ditransfer ke akun mereka
+- Mengorganisir distribusi tiket untuk kelompok
+
+Cara kerjanya:
+1. Pemilik tiket memilih tiket yang ingin ditransfer dan memasukkan email penerima
+2. Sistem memverifikasi bahwa penerima terdaftar di NesaVent
+3. Tiket ditransfer ke akun penerima dengan QR code baru yang dibuat
+4. Kedua pihak menerima email konfirmasi
+5. Semua aktivitas transfer dicatat dalam histori tiket untuk tujuan audit
+
+Syarat untuk mentransfer tiket:
+- Tiket harus sudah dibayar
+- Tiket belum digunakan
+- Tiket tidak dibatalkan
+- Penerima harus memiliki akun yang terdaftar di NesaVent
+
+API untuk transfer tiket tersedia melalui endpoint `POST /api/tickets/:id/transfer` dengan parameter `recipientEmail`.
+
+## Social Login Feature
+
+NesaVent kini mendukung login dengan Google untuk memudahkan pengguna mendaftar dan masuk ke aplikasi.
+
+Cara kerjanya:
+1. User mengklik tombol "Login with Google" di halaman login
+2. User akan diarahkan ke halaman autentikasi Google
+3. Setelah autentikasi berhasil, user akan dikembalikan ke aplikasi
+4. Jika email user belum terdaftar, sistem akan membuat akun baru secara otomatis
+5. Jika email sudah terdaftar, akun yang ada akan ditautkan dengan Google
+
+Keuntungan menggunakan Login with Google:
+- Login dengan satu klik
+- Tidak perlu mengingat password tambahan
+- Email otomatis terverifikasi
+- Profil otomatis diisi (nama dan foto)
+
+## Technologies Used
+
+- Express.js - Web framework
+- MongoDB - Database
+- Mongoose - ODM untuk MongoDB
+- JWT - Authentication
+- Multer - File uploads
+- Bcrypt - Password encryption
+- QRCode - Ticket QR code generation
+- Nodemailer - Email sending
+- Winston - Logging
+- Rate Limiter - API security
+- Helmet - Security headers
+- Midtrans - Payment gateway
+- Jest - Unit testing
+
+## Midtrans Integration
+
+NesaVent terintegrasi dengan Midtrans sebagai payment gateway. Untuk menggunakan payment feature:
+
+1. Register akun di [Midtrans](https://midtrans.com)
+2. Get API keys dari Midtrans Dashboard
+3. Set Midtrans configuration di file `.env`
+4. Gunakan Sandbox mode untuk testing
+
+## Folder Structure
+
+```
+nesavent/
+├── logs/                   # Log files
+├── src/                    # Source code
+│   ├── controllers/        # Logic controllers
+│   ├── middleware/         # Express middleware
+│   ├── models/             # Mongoose models
+│   ├── routes/             # API routes
+│   ├── services/           # Business services
+│   ├── utils/              # Utility functions
+│   └── app.js              # Express app setup
+├── uploads/                # Uploaded files
+│   ├── events/             # Event images dan banners
+│   ├── profiles/           # User profile pictures
+│   └── documents/          # Event-related documents
+├── tests/                  # Unit dan integration tests
+├── .env                    # Environment variables
+└── package.json            # Dependencies dan scripts
+```
+
+## Creating Admin User
+
+Untuk testing dan system administration, Anda dapat membuat admin user secara otomatis dengan menjalankan command:
+
+```
+npm run create:admin
+```
+
+Command ini akan membuat admin user dengan credentials:
+- Email: admin@example.com
+- Password: admin123
+
+Admin user memiliki access ke semua features, termasuk mengubah role user lain.
+
+## Short Link (New Feature)
+
+NesaVent kini dilengkapi dengan Short Link system yang memungkinkan user untuk:
+
+1. Membuat short link untuk event atau ticket tertentu
+2. Track jumlah visits pada Short Link
+3. Membuat Short Link untuk external URL
+4. Set expiry date untuk Short Link
+
+Untuk menggunakan Short Link feature, akses endpoints berikut:
+
+- `POST /api/shortlinks` - Create Short Link baru
+- `GET /api/shortlinks` - View list Short Link yang dibuat
+- `GET /s/{code}` - Access Short Link langsung (public)
+
+Event creators juga dapat membuat Short Link untuk event mereka dengan endpoint:
+- `POST /api/events/{id}/shortlink` - Create Short Link khusus untuk event

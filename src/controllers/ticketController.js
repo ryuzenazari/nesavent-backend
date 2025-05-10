@@ -1,0 +1,845 @@
+const mongoose = require('mongoose');
+const { validationResult } = require('express-validator');
+const Event = require('../models/Event');
+const Ticket = require('../models/Ticket');
+const Transaction = require('../models/Transaction');
+const midtransService = require('../services/midtransService');
+const User = require('../models/User');
+const { generateTicketQR, verifyTicketQR } = require('../utils/qrCodeGenerator');
+const { sendTicketConfirmation, sendTicketTransferNotification, sendTicketTransferConfirmation } = require('../services/emailService');
+const logger = require('../utils/logger');
+const purchaseTicket = async (req, res) => {
+  let session = null;
+  
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validasi gagal',
+        errors: errors.array() 
+      });
+    }
+    const { 
+      eventId, 
+      ticketTypeId, 
+      ticketType = 'regular', 
+      quantity = 1, 
+      paymentMethod = 'midtrans' 
+    } = req.body;
+    if (!eventId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID event diperlukan'
+      });
+    }
+    const userId = req.userId || (req.user && req.user._id);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Autentikasi diperlukan'
+      });
+    }
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event tidak ditemukan'
+      });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+    const ticketInfo = await extractTicketInfo(event, user, ticketType, ticketTypeId, quantity);
+    if (!ticketInfo.success) {
+      return res.status(ticketInfo.statusCode || 400).json({
+        success: false,
+        message: ticketInfo.message
+      });
+    }
+    session = await mongoose.startSession();
+    session.startTransaction();
+    const purchaseResult = await processTicketPurchase(
+      session,
+      event,
+      user,
+      ticketInfo,
+      paymentMethod,
+      quantity,
+      ticketTypeId,
+      ticketType
+    );
+    await session.commitTransaction();
+    
+    logger.info(`Tickets purchased: ${quantity} ${ticketInfo.ticketTypeName} for event: ${event.title} by user: ${user.email}`);
+    
+    return res.status(201).json({
+      success: true,
+      message: 'Tiket berhasil dipesan',
+      transaction: {
+        id: purchaseResult.transaction._id,
+        amount: purchaseResult.transaction.amount,
+        tickets: purchaseResult.ticketIds,
+        event: {
+          id: event._id,
+          title: event.title
+        },
+        payment: {
+          method: paymentMethod,
+          status: 'pending',
+          redirectUrl: purchaseResult.transaction.midtransRedirectUrl,
+          token: purchaseResult.transaction.midtransToken
+        },
+        midtransResponse: purchaseResult.transaction.midtransResponse,
+        midtransRedirectUrl: purchaseResult.transaction.midtransRedirectUrl,
+        midtransToken: purchaseResult.transaction.midtransToken,
+        midtransOrderId: purchaseResult.transaction.midtransOrderId
+      }
+    });
+    
+  } catch (error) {
+    if (session) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        logger.error(`Failed to abort transaction: ${abortError.message || 'Unknown error'}`);
+      }
+    }
+    const errorMessage = error ? (error.message || 'Unknown error') : 'Unknown error';
+    logger.error(`Buy ticket error: ${errorMessage}`);
+    
+    return res.status(500).json({ 
+      success: false,
+      message: 'Terjadi kesalahan saat pembelian tiket', 
+      error: errorMessage
+    });
+  } finally {
+    if (session) {
+      try {
+        await session.endSession();
+      } catch (endSessionError) {
+        logger.error(`Failed to end session: ${endSessionError.message || 'Unknown error'}`);
+      }
+    }
+  }
+};
+const extractTicketInfo = async (event, user, ticketType, ticketTypeId, quantity) => {
+  try {
+    let price;
+    let selectedTicketType;
+    let ticketTypeName;
+    let ticketBenefits = [];
+    
+    if (ticketTypeId && event.ticketTypes && event.ticketTypes.length > 0) {
+      selectedTicketType = event.ticketTypes.find(
+        type => type._id.toString() === ticketTypeId.toString()
+      );
+      
+      if (!selectedTicketType) {
+        return {
+          success: false,
+          statusCode: 404,
+          message: 'Tipe tiket tidak ditemukan'
+        };
+      }
+      
+      if (selectedTicketType.availableQuantity < quantity) {
+        return {
+          success: false,
+          statusCode: 400,
+          message: `Tiket tipe ${selectedTicketType.name} tidak mencukupi (tersedia: ${selectedTicketType.availableQuantity})`
+        };
+      }
+      
+      price = selectedTicketType.price;
+      ticketTypeName = selectedTicketType.name;
+      ticketBenefits = selectedTicketType.benefits || [];
+    } else {
+      if (event.availableTickets < quantity) {
+        return {
+          success: false,
+          statusCode: 400,
+          message: 'Tiket tidak mencukupi'
+        };
+      }
+      
+      if (ticketType === 'student' && user.role !== 'student') {
+        return {
+          success: false,
+          statusCode: 403,
+          message: 'Hanya mahasiswa yang dapat membeli tiket student'
+        };
+      }
+      
+      price = ticketType === 'student' ? event.price.student : event.price.regular;
+      ticketTypeName = ticketType === 'student' ? 'Student' : 'Regular';
+    }
+    
+    return {
+      success: true,
+      price,
+      selectedTicketType,
+      ticketTypeName,
+      ticketBenefits
+    };
+  } catch (error) {
+    logger.error(`Error extracting ticket info: ${error.message || 'Unknown error'}`);
+    return {
+      success: false,
+      statusCode: 500,
+      message: 'Gagal memproses informasi tiket'
+    };
+  }
+};
+const processTicketPurchase = async (
+  session,
+  event,
+  user,
+  ticketInfo,
+  paymentMethod,
+  quantity,
+  ticketTypeId,
+  ticketType
+) => {
+  const ticketIds = [];
+  const totalAmount = ticketInfo.price * quantity;
+  
+  for (let i = 0; i < quantity; i++) {
+    const ticketNumber = `TIX-${Math.floor(100000 + Math.random() * 900000)}-${Date.now().toString().slice(-6)}`;
+    
+    const ticket = new Ticket({
+      event: event._id,
+      user: user._id,
+      ticketType: ticketTypeId ? 'custom' : ticketType,
+      ticketTypeId: ticketTypeId || undefined,
+      ticketTypeName: ticketInfo.ticketTypeName,
+      price: ticketInfo.price,
+      paymentMethod,
+      ticketBenefits: ticketInfo.ticketBenefits,
+      transaction: new mongoose.Types.ObjectId(),
+      ticketNumber: ticketNumber
+    });
+    
+    const qrCodeData = await generateTicketQR(ticket._id, event._id, user._id);
+    ticket.qrCode = qrCodeData;
+    
+    await ticket.save({ session });
+    ticketIds.push(ticket._id);
+  }
+  
+  const transaction = new Transaction({
+    user: user._id,
+    tickets: ticketIds,
+    amount: totalAmount,
+    paymentMethod
+  });
+  
+  await transaction.save({ session });
+
+  // Buat transaksi Midtrans
+  if (paymentMethod === 'midtrans') {
+    try {
+      logger.info(`Creating Midtrans transaction for order ${transaction.transactionId}`);
+      logger.info('Transaction details:', {
+        amount: transaction.amount,
+        user: user.email,
+        event: event.title
+      });
+
+      // Buat parameter untuk Midtrans
+      const midtransParameter = {
+        transaction_details: {
+          order_id: transaction.transactionId,
+          gross_amount: transaction.amount
+        },
+        customer_details: {
+          first_name: user.name.split(' ')[0],
+          last_name: user.name.split(' ').slice(1).join(' '),
+          email: user.email
+        },
+        item_details: [
+          {
+            id: event._id,
+            price: ticketInfo.price,
+            quantity: quantity,
+            name: `Tiket untuk ${event.title}`,
+            category: ticketType === 'student' ? 'Tiket Mahasiswa' : 'Tiket Regular'
+          }
+        ],
+        credit_card: {
+          secure: true
+        }
+      };
+
+      logger.info('Midtrans parameters:', midtransParameter);
+
+      const midtransResponse = await midtransService.createTransaction(transaction, user, ticketIds.map(id => ({ price: ticketInfo.price })), event);
+      
+      logger.info('Midtrans response received:', midtransResponse);
+      
+      if (!midtransResponse || !midtransResponse.token || !midtransResponse.redirect_url) {
+        throw new Error('Response Midtrans tidak lengkap');
+      }
+      
+      // Simpan response Midtrans ke database
+      transaction.midtransToken = midtransResponse.token;
+      transaction.midtransRedirectUrl = midtransResponse.redirect_url;
+      transaction.midtransOrderId = midtransResponse.order_id;
+      transaction.midtransResponse = midtransResponse;
+      
+      logger.info('Saving Midtrans data to transaction:', {
+        token: transaction.midtransToken,
+        redirectUrl: transaction.midtransRedirectUrl,
+        orderId: transaction.midtransOrderId
+      });
+      
+      await transaction.save({ session });
+      
+      logger.info(`Midtrans transaction created successfully for order ${transaction.transactionId}`);
+      logger.info(`Redirect URL: ${midtransResponse.redirect_url}`);
+    } catch (error) {
+      logger.error(`Midtrans transaction creation failed: ${error.message}`);
+      throw new Error('Gagal membuat transaksi pembayaran');
+    }
+  }
+  
+  if (ticketTypeId && ticketInfo.selectedTicketType) {
+    await Event.updateOne(
+      { _id: event._id, 'ticketTypes._id': ticketInfo.selectedTicketType._id },
+      { $inc: { 'ticketTypes.$.availableQuantity': -quantity } },
+      { session }
+    );
+  }
+  
+  event.availableTickets -= quantity;
+  await event.save({ session });
+  
+  return {
+    transaction,
+    ticketIds
+  };
+};
+const getUserTickets = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const tickets = await Ticket.find({ user: userId })
+      .populate('event', 'title date time location')
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      tickets: tickets.map(ticket => ({
+        _id: ticket._id,
+        event: ticket.event,
+        ticketNumber: ticket.ticketNumber,
+        ticketType: ticket.ticketTypeName || ticket.ticketType,
+        price: ticket.price,
+        paymentStatus: ticket.paymentStatus,
+        isUsed: ticket.isUsed,
+        purchasedAt: ticket.createdAt,
+        benefits: ticket.ticketBenefits
+      }))
+    });
+  } catch (error) {
+    logger.error(`Get user tickets error: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Error saat mengambil data tiket'
+    });
+  }
+};
+const getTicketById = async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id)
+      .populate({
+        path: 'event',
+        select: 'title date time location organizer image'
+      });
+    
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tiket tidak ditemukan'
+      });
+    }
+    
+    const userId = req.userId || (req.user && req.user._id);
+    const userRole = req.userRole || (req.user && req.user.role);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Autentikasi diperlukan'
+      });
+    }
+    
+    if (ticket.user.toString() !== userId.toString() && userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Tidak memiliki izin untuk melihat tiket ini'
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      ticket
+    });
+  } catch (error) {
+    const errorMessage = error ? (error.message || 'Unknown error') : 'Unknown error';
+    logger.error(`Get ticket by id error: ${errorMessage}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Gagal mengambil tiket',
+      error: errorMessage
+    });
+  }
+};
+const cancelTicket = async (req, res) => {
+  let session = null;
+  
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tiket tidak ditemukan'
+      });
+    }
+    
+    const userId = req.userId || (req.user && req.user._id);
+    const userRole = req.userRole || (req.user && req.user.role);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Autentikasi diperlukan'
+      });
+    }
+    
+    if (ticket.user.toString() !== userId.toString() && userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Tidak memiliki izin untuk membatalkan tiket ini'
+      });
+    }
+    
+    if (ticket.paymentStatus === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Tiket sudah dibatalkan'
+      });
+    }
+    
+    session = await mongoose.startSession();
+    session.startTransaction();
+    
+    ticket.paymentStatus = 'cancelled';
+    await ticket.save({ session });
+    
+    const event = await Event.findById(ticket.event);
+    if (event) {
+      event.availableTickets += 1;
+      await event.save({ session });
+    }
+    
+    const transaction = await Transaction.findOne({ tickets: ticket._id });
+    if (transaction) {
+      transaction.paymentStatus = 'refunded';
+      await transaction.save({ session });
+    }
+    
+    await session.commitTransaction();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Tiket berhasil dibatalkan',
+      ticket
+    });
+  } catch (error) {
+    if (session) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        logger.error(`Failed to abort transaction: ${abortError.message || 'Unknown error'}`);
+      }
+    }
+    
+    const errorMessage = error ? (error.message || 'Unknown error') : 'Unknown error';
+    logger.error(`Cancel ticket error: ${errorMessage}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Gagal membatalkan tiket',
+      error: errorMessage
+    });
+  } finally {
+    if (session) {
+      try {
+        await session.endSession();
+      } catch (endSessionError) {
+        logger.error(`Failed to end session: ${endSessionError.message || 'Unknown error'}`);
+      }
+    }
+  }
+};
+const handleMidtransNotification = async (req, res) => {
+  try {
+    if (!req.body) {
+      return res.status(400).json({
+        success: false,
+        message: 'Data notifikasi diperlukan'
+      });
+    }
+    
+    const { orderId, status, statusResponse } = await midtransService.verifyNotification(req.body);
+    
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID tidak ditemukan dalam notifikasi'
+      });
+    }
+    
+    const transaction = await Transaction.findOne({ transactionId: orderId });
+    
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi tidak ditemukan'
+      });
+    }
+    
+    transaction.paymentStatus = status || transaction.paymentStatus;
+    transaction.midtransResponse = statusResponse || transaction.midtransResponse;
+    await transaction.save();
+    
+    if (status === 'completed') {
+      const tickets = await Ticket.find({ _id: { $in: transaction.tickets } });
+      
+      for (const ticket of tickets) {
+        ticket.paymentStatus = 'paid';
+        await ticket.save();
+      }
+    } else if (status === 'failed') {
+      const tickets = await Ticket.find({ _id: { $in: transaction.tickets } });
+      
+      for (const ticket of tickets) {
+        ticket.paymentStatus = 'cancelled';
+        await ticket.save();
+      }
+      
+      const event = await Event.findById(tickets[0]?.event);
+      if (event) {
+        event.availableTickets += tickets.length;
+        await event.save();
+      }
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Notifikasi berhasil diproses'
+    });
+  } catch (error) {
+    const errorMessage = error ? (error.message || 'Unknown error') : 'Unknown error';
+    logger.error(`Midtrans notification error: ${errorMessage}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Gagal memproses notifikasi',
+      error: errorMessage
+    });
+  }
+};
+const getTransactionStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID transaksi diperlukan'
+      });
+    }
+    
+    const transaction = await Transaction.findById(id)
+      .populate({
+        path: 'tickets',
+        populate: {
+          path: 'event',
+          select: 'title date time location'
+        }
+      });
+    
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaksi tidak ditemukan'
+      });
+    }
+    
+    const userId = req.userId || (req.user && req.user._id);
+    const userRole = req.userRole || (req.user && req.user.role);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Autentikasi diperlukan'
+      });
+    }
+    
+    if (transaction.user.toString() !== userId.toString() && userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Tidak memiliki izin untuk melihat transaksi ini'
+      });
+    }
+    
+    if (transaction.paymentStatus === 'pending' && transaction.transactionId) {
+      try {
+        const statusResponse = await midtransService.getTransactionStatus(transaction.transactionId);
+        
+        let status;
+        if (statusResponse?.transaction_status === 'settlement' || statusResponse?.transaction_status === 'capture') {
+          status = 'completed';
+        } else if (statusResponse?.transaction_status === 'pending') {
+          status = 'pending';
+        } else {
+          status = 'failed';
+        }
+        
+        if (status !== transaction.paymentStatus) {
+          transaction.paymentStatus = status;
+          transaction.midtransResponse = statusResponse;
+          await transaction.save();
+          
+          if (status === 'completed') {
+            const tickets = await Ticket.find({ _id: { $in: transaction.tickets } });
+            
+            for (const ticket of tickets) {
+              ticket.paymentStatus = 'paid';
+              await ticket.save();
+            }
+          } else if (status === 'failed') {
+            const tickets = await Ticket.find({ _id: { $in: transaction.tickets } });
+            
+            for (const ticket of tickets) {
+              ticket.paymentStatus = 'cancelled';
+              await ticket.save();
+            }
+            
+            const event = await Event.findById(tickets[0]?.event);
+            if (event) {
+              event.availableTickets += tickets.length;
+              await event.save();
+            }
+          }
+        }
+      } catch (midtransError) {
+        logger.error(`Midtrans error: ${midtransError?.message || 'Unknown error'}`);
+      }
+    }
+    
+    const formattedResponse = {
+      id: transaction._id,
+      transactionId: transaction.transactionId,
+      amount: transaction.amount,
+      paymentMethod: transaction.paymentMethod,
+      paymentStatus: transaction.paymentStatus,
+      createdAt: transaction.createdAt,
+      tickets: transaction.tickets.map(ticket => ({
+        id: ticket._id,
+        ticketNumber: ticket.ticketNumber,
+        ticketType: ticket.ticketType,
+        price: ticket.price,
+        paymentStatus: ticket.paymentStatus,
+        event: ticket.event ? {
+          title: ticket.event.title,
+          date: ticket.event.date,
+          time: ticket.event.time,
+          location: ticket.event.location
+        } : null
+      }))
+    };
+    
+    return res.status(200).json({
+      success: true,
+      transaction: formattedResponse
+    });
+  } catch (error) {
+    const errorMessage = error ? (error.message || 'Unknown error') : 'Unknown error';
+    logger.error(`Get transaction status error: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Gagal mendapatkan status transaksi',
+      error: errorMessage
+    });
+  }
+};
+const transferTicket = async (req, res) => {
+  let session = null;
+
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Validasi gagal',
+        errors: errors.array() 
+      });
+    }
+
+    const { recipientEmail } = req.body;
+    const ticketId = req.params.id;
+    const userId = req.userId;
+
+    // Pastikan tiket ada dan milik user yang melakukan request
+    const ticket = await Ticket.findOne({ _id: ticketId, user: userId });
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tiket tidak ditemukan atau bukan milik Anda'
+      });
+    }
+
+    // Periksa status tiket (tidak boleh digunakan atau dibatalkan)
+    if (ticket.isUsed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tiket sudah digunakan dan tidak dapat ditransfer'
+      });
+    }
+
+    if (ticket.paymentStatus === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Tiket telah dibatalkan dan tidak dapat ditransfer'
+      });
+    }
+
+    if (ticket.paymentStatus === 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Tiket belum dibayar dan tidak dapat ditransfer'
+      });
+    }
+
+    // Temukan penerima tiket berdasarkan email
+    const recipient = await User.findOne({ email: recipientEmail });
+    if (!recipient) {
+      return res.status(404).json({
+        success: false,
+        message: 'Penerima tiket tidak ditemukan. Pastikan email penerima sudah terdaftar di sistem.'
+      });
+    }
+
+    // Pastikan user tidak mentransfer ke diri sendiri
+    if (recipient._id.toString() === userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Anda tidak dapat mentransfer tiket ke diri sendiri'
+      });
+    }
+
+    // Dapatkan data pengirim untuk keperluan notifikasi email
+    const sender = await User.findById(userId);
+    if (!sender) {
+      return res.status(404).json({
+        success: false,
+        message: 'Data pengirim tidak ditemukan'
+      });
+    }
+
+    // Dapatkan data event untuk keperluan notifikasi email
+    const event = await Event.findById(ticket.event);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Data event tidak ditemukan'
+      });
+    }
+
+    // Mulai transaction untuk memastikan konsistensi data
+    session = await mongoose.startSession();
+    session.startTransaction();
+
+    // Buat QR code baru untuk tiket
+    const qrData = await generateTicketQR(ticket._id.toString(), event._id.toString(), recipient._id.toString());
+
+    // Update informasi tiket
+    const updatedTicket = await Ticket.findByIdAndUpdate(
+      ticketId,
+      { 
+        user: recipient._id, 
+        qrCode: qrData,
+        $push: { transferHistory: { from: userId, to: recipient._id, transferredAt: new Date() } }
+      },
+      { new: true, session }
+    );
+
+    // Kirim email konfirmasi ke penerima tiket
+    await sendTicketTransferNotification(
+      recipient.email, 
+      recipient.name, 
+      updatedTicket, 
+      event, 
+      sender
+    );
+
+    // Kirim email konfirmasi ke pengirim tiket
+    await sendTicketTransferConfirmation(
+      sender.email,
+      sender.name,
+      updatedTicket,
+      event,
+      recipient
+    );
+
+    await session.commitTransaction();
+    
+    // Log aktivitas transfer
+    logger.info(`Ticket transferred: ${ticket.ticketNumber} from ${sender.name} (${sender.email}) to ${recipient.name} (${recipient.email})`);
+    
+    return res.json({
+      success: true,
+      message: `Tiket berhasil ditransfer ke ${recipientEmail}`,
+      ticket: {
+        _id: updatedTicket._id,
+        ticketNumber: updatedTicket.ticketNumber,
+        recipient: {
+          email: recipient.email,
+          name: recipient.name
+        }
+      }
+    });
+    
+  } catch (error) {
+    // Rollback jika terjadi error
+    if (session) {
+      await session.abortTransaction();
+    }
+    
+    logger.error(`Transfer ticket error: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mentransfer tiket',
+      error: error.message
+    });
+    
+  } finally {
+    if (session) {
+      await session.endSession();
+    }
+  }
+};
+module.exports = {
+  purchaseTicket,
+  getUserTickets,
+  getTicketById,
+  cancelTicket,
+  handleMidtransNotification,
+  getTransactionStatus,
+  transferTicket
+}; 

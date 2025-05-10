@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title || 'Tidak Ditemukan' %> | NesaVent</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f8f9fa;
+      color: #343a40;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .container {
+      max-width: 600px;
+      background-color: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 40px;
+    }
+    
+    h1 {
+      color: #d32f2f;
+      margin-bottom: 20px;
+      font-size: 2rem;
+    }
+    
+    p {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      margin-bottom: 25px;
+      color: #495057;
+    }
+    
+    .btn {
+      display: inline-block;
+      background-color: #1e88e5;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    
+    .btn:hover {
+      background-color: #1565c0;
+      transform: translateY(-2px);
+    }
+    
+    .logo {
+      margin-bottom: 20px;
+      width: 120px;
+      height: auto;
+    }
+    
+    .error-code {
+      font-size: 5rem;
+      font-weight: bold;
+      color: #e0e0e0;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 class="error-code">404</h2>
+    <h1><%= title || 'Halaman Tidak Ditemukan' %></h1>
+    <p><%= message || 'Link yang Anda cari tidak ditemukan atau sudah dihapus.' %></p>
+    <a href="/" class="btn">Kembali ke Beranda</a>
+  </div>
+</body>
+</html> 

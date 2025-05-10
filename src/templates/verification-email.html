@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verifikasi Email NesaVent</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333333;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      border-top: 4px solid #3490dc;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      margin-top: 20px;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .header {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      text-align: center;
+      color: #333333;
+    }
+    .content {
+      margin-bottom: 30px;
+    }
+    .button {
+      display: block;
+      width: 100%;
+      max-width: 300px;
+      margin: 30px auto;
+      padding: 12px 20px;
+      background-color: #3490dc;
+      color: #ffffff;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .button:hover {
+      background-color: #2779bd;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #eeeeee;
+      color: #888888;
+      font-size: 12px;
+    }
+    .footer p {
+      margin: 5px 0;
+    }
+    .disclaimer {
+      font-style: italic;
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <h2>NesaVent</h2>
+    </div>
+    
+    <div class="header">
+      Verifikasi Email Anda
+    </div>
+    
+    <div class="content">
+      <p>Halo {{name}},</p>
+      
+      <p>Terima kasih telah mendaftar di NesaVent. Untuk menyelesaikan pendaftaran dan mengaktifkan akun Anda, silakan klik tombol di bawah ini untuk verifikasi alamat email Anda:</p>
+      
+      <a href="{{verificationUrl}}" class="button">Verifikasi Email Saya</a>
+      
+      <p>Jika Anda tidak dapat mengklik tombol di atas, silakan salin dan tempel URL berikut ke browser Anda:</p>
+      
+      <p>{{verificationUrl}}</p>
+      
+      <p>Jika Anda tidak membuat akun, Anda dapat mengabaikan email ini.</p>
+      
+      <p>Salam,<br>Tim NesaVent</p>
+    </div>
+    
+    <div class="footer">
+      <p>&copy; {{year}} {{appName}}. Seluruh hak cipta dilindungi.</p>
+      <p>Platform ticketing event karya mahasiswa Surabaya</p>
+      
+      <div class="disclaimer">
+        <p>NesaVent adalah platform independen yang dibuat oleh mahasiswa dan tidak terafiliasi secara resmi dengan Universitas Negeri Surabaya (UNESA).</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html> 

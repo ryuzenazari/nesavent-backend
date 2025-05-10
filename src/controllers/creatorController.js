@@ -1,0 +1,191 @@
+const { validationResult } = require('express-validator');
+const User = require('../models/User');
+const CreatorVerification = require('../models/CreatorVerification');
+const logger = require('../utils/logger');
+const fs = require('fs');
+const path = require('path');
+exports.submitVerification = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      if (req.files) {
+        req.files.forEach(file => {
+          fs.unlinkSync(file.path);
+        });
+      }
+      return res.status(400).json({ errors: errors.array() });
+    }
+    const { organizationName, organizationType, phoneNumber, description } = req.body;
+    
+    const existingRequest = await CreatorVerification.findOne({ 
+      user: req.user._id,
+      status: 'pending'
+    });
+    
+    if (existingRequest) {
+      if (req.files) {
+        req.files.forEach(file => {
+          fs.unlinkSync(file.path);
+        });
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Anda sudah memiliki permintaan verifikasi yang sedang diproses'
+      });
+    }
+    
+    if (req.user.role === 'creator' || req.user.role === 'staff_creator') {
+      if (req.files) {
+        req.files.forEach(file => {
+          fs.unlinkSync(file.path);
+        });
+      }
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Anda sudah terdaftar sebagai creator/staff creator'
+      });
+    }
+    
+    const documentPaths = [];
+    if (req.files && req.files.length > 0) {
+      req.files.forEach(file => {
+        documentPaths.push(`/uploads/documents/${file.filename}`);
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Minimal satu dokumen harus diunggah'
+      });
+    }
+    
+    const newVerification = new CreatorVerification({
+      user: req.user._id,
+      organizationName,
+      organizationType,
+      phoneNumber,
+      description,
+      documents: documentPaths
+    });
+    
+    await newVerification.save();
+    
+    logger.info(`User ${req.user.email} submitted creator verification request`);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Permintaan verifikasi creator berhasil dikirim dan sedang menunggu persetujuan admin',
+      verification: {
+        id: newVerification._id,
+        status: newVerification.status,
+        createdAt: newVerification.createdAt
+      }
+    });
+  } catch (error) {
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+    }
+    
+    logger.error(`Creator verification error: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat memproses permintaan verifikasi',
+      error: error.message
+    });
+  }
+};
+exports.getVerificationStatus = async (req, res) => {
+  try {
+    const verifications = await CreatorVerification.find({ user: req.user._id })
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      verifications
+    });
+  } catch (error) {
+    logger.error(`Get creator verification status error: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengambil status verifikasi',
+      error: error.message
+    });
+  }
+};
+exports.addStaffCreator = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    
+    const { userId, email, staffName } = req.body;
+    
+    let user;
+    if (userId) {
+      user = await User.findById(userId);
+    } else if (email) {
+      user = await User.findOne({ email });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID atau email harus disediakan'
+      });
+    }
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+    
+    if (user.role === 'creator' || user.role === 'staff_creator' || user.role === 'admin') {
+      return res.status(400).json({
+        success: false,
+        message: `User sudah memiliki role ${user.role}`
+      });
+    }
+    
+    user.role = 'staff_creator';
+    if (staffName) {
+      user.staffDetails = {
+        addedBy: req.user._id,
+        addedAt: new Date(),
+        staffName: staffName
+      };
+    } else {
+      user.staffDetails = {
+        addedBy: req.user._id,
+        addedAt: new Date()
+      };
+    }
+    await user.save();
+    
+    logger.info(`User ${user.email} has been added as staff creator by ${req.user.email}`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Staff creator berhasil ditambahkan. Staff hanya dapat melakukan scan QR code tiket.',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        staffDetails: user.staffDetails
+      }
+    });
+  } catch (error) {
+    logger.error(`Add staff creator error: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat menambahkan staff creator',
+      error: error.message
+    });
+  }
+}; 

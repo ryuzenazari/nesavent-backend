@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Konfirmasi Tiket NesaVent</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333333;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      border-top: 4px solid #3490dc;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      margin-top: 20px;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .header {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      text-align: center;
+      color: #333333;
+    }
+    .content {
+      margin-bottom: 30px;
+    }
+    .ticket-container {
+      border: 1px solid #dddddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      background-color: #f9f9f9;
+    }
+    .event-details {
+      margin-bottom: 20px;
+    }
+    .event-details h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      color: #3490dc;
+    }
+    .ticket-details {
+      margin-bottom: 20px;
+    }
+    .ticket-details p {
+      margin: 5px 0;
+    }
+    .ticket-number {
+      font-weight: bold;
+      font-size: 18px;
+      color: #3490dc;
+    }
+    .qr-code {
+      text-align: center;
+      margin: 20px 0;
+    }
+    .qr-code img {
+      max-width: 200px;
+      height: auto;
+    }
+    .button {
+      display: block;
+      width: 100%;
+      max-width: 300px;
+      margin: 30px auto;
+      padding: 12px 20px;
+      background-color: #3490dc;
+      color: #ffffff;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .button:hover {
+      background-color: #2779bd;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #eeeeee;
+      color: #888888;
+      font-size: 12px;
+    }
+    .footer p {
+      margin: 5px 0;
+    }
+    .disclaimer {
+      font-style: italic;
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <h2>NesaVent</h2>
+    </div>
+    
+    <div class="header">
+      Konfirmasi Tiket
+    </div>
+    
+    <div class="content">
+      <p>Halo {{name}},</p>
+      
+      <p>Terima kasih telah memesan tiket di NesaVent. Berikut adalah detail tiket Anda:</p>
+      
+      <div class="ticket-container">
+        <div class="event-details">
+          <h3>{{eventTitle}}</h3>
+          <p><strong>Tanggal:</strong> {{eventDate}}</p>
+          <p><strong>Waktu:</strong> {{eventTime}}</p>
+          <p><strong>Lokasi:</strong> {{eventLocation}}</p>
+        </div>
+        
+        <div class="ticket-details">
+          <p><strong>Nomor Tiket:</strong> <span class="ticket-number">{{ticketNumber}}</span></p>
+          <p><strong>Jenis Tiket:</strong> {{ticketType}}</p>
+          <p><strong>Harga:</strong> {{ticketPrice}}</p>
+        </div>
+        
+        <div class="qr-code">
+          <p><strong>QR Code Tiket</strong></p>
+          <img src="{{qrCodeImage}}" alt="QR Code Tiket">
+          <p>Tunjukkan QR code ini saat check-in</p>
+        </div>
+      </div>
+      
+      <p>Anda juga dapat melihat tiket ini di akun NesaVent Anda:</p>
+      
+      <a href="{{viewTicketUrl}}" class="button">Lihat Tiket Saya</a>
+      
+      <p>Catatan penting:</p>
+      <ul>
+        <li>Harap tiba 30 menit sebelum acara dimulai untuk proses check-in.</li>
+        <li>Simpan email ini atau screenshot QR code untuk mempermudah proses check-in.</li>
+        <li>Tiket ini bersifat personal dan tidak dapat dipindahtangankan.</li>
+      </ul>
+      
+      <p>Jika Anda memiliki pertanyaan, silakan hubungi kami melalui email support@nesavent.com.</p>
+      
+      <p>Salam,<br>Tim NesaVent</p>
+    </div>
+    
+    <div class="footer">
+      <p>&copy; {{year}} {{appName}}. Seluruh hak cipta dilindungi.</p>
+      <p>Platform ticketing event karya mahasiswa Surabaya</p>
+      
+      <div class="disclaimer">
+        <p>NesaVent adalah platform independen yang dibuat oleh mahasiswa dan tidak terafiliasi secara resmi dengan Universitas Negeri Surabaya (UNESA).</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html> 

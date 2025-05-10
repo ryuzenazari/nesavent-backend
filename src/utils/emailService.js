@@ -1,0 +1,152 @@
+const nodemailer = require('nodemailer');
+const logger = require('./logger');
+const fs = require('fs');
+const path = require('path');
+const handlebars = require('handlebars');
+const transporter = nodemailer.createTransport({
+  service: process.env.EMAIL_SERVICE,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+transporter.verify()
+  .then(() => logger.info('Server siap mengirim email'))
+  .catch(err => logger.error('Tidak dapat terhubung ke server email', { error: err.message }));
+const readHTMLFile = (filePath) => {
+  try {
+    const templateDir = path.join(__dirname, '../templates');
+    const fileContent = fs.readFileSync(path.join(templateDir, filePath), 'utf-8');
+    return fileContent;
+  } catch (error) {
+    logger.error('Gagal membaca file template email', { 
+      error: error.message, 
+      filePath 
+    });
+    throw new Error('Gagal membaca template email');
+  }
+};
+const createTemplate = (filePath, replacements) => {
+  try {
+    const html = readHTMLFile(filePath);
+    const template = handlebars.compile(html);
+    return template(replacements);
+  } catch (error) {
+    logger.error('Gagal membuat template email', { 
+      error: error.message, 
+      filePath 
+    });
+    throw new Error('Gagal membuat template email');
+  }
+};
+const sendVerificationEmail = async (email, name, token) => {
+  try {
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
+    
+    const htmlContent = createTemplate('verification-email.html', {
+      name,
+      verificationUrl,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Verifikasi Akun NesaVent Anda',
+      html: htmlContent
+    };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email verifikasi terkirim', { 
+      messageId: info.messageId, 
+      email 
+    });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    logger.error('Gagal mengirim email verifikasi', { 
+      error: error.message, 
+      email 
+    });
+    throw new Error('Gagal mengirim email verifikasi');
+  }
+};
+const sendTicketConfirmation = async (email, name, ticket, event) => {
+  try {
+    const htmlContent = createTemplate('ticket-confirmation.html', {
+      name,
+      eventTitle: event.title,
+      eventDate: new Date(event.date).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      eventTime: event.time,
+      eventLocation: event.location,
+      ticketNumber: ticket.ticketNumber,
+      ticketType: ticket.ticketType === 'student' ? 'Mahasiswa' : 'Reguler',
+      ticketPrice: ticket.price.toLocaleString('id-ID', {
+        style: 'currency',
+        currency: 'IDR'
+      }),
+      qrCodeImage: ticket.qrCode.dataUrl,
+      viewTicketUrl: `${process.env.FRONTEND_URL}/tickets/${ticket._id}`,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `Tiket Anda untuk ${event.title}`,
+      html: htmlContent
+    };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email konfirmasi tiket terkirim', { 
+      messageId: info.messageId, 
+      email,
+      ticketId: ticket._id
+    });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    logger.error('Gagal mengirim email konfirmasi tiket', { 
+      error: error.message, 
+      email,
+      ticketId: ticket._id
+    });
+    throw new Error('Gagal mengirim email konfirmasi tiket');
+  }
+};
+const sendPasswordResetEmail = async (email, name, token) => {
+  try {
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+    
+    const htmlContent = createTemplate('reset-password.html', {
+      name,
+      resetUrl,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Reset Password NesaVent Anda',
+      html: htmlContent
+    };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email reset password terkirim', { 
+      messageId: info.messageId, 
+      email 
+    });
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    logger.error('Gagal mengirim email reset password', { 
+      error: error.message, 
+      email 
+    });
+    throw new Error('Gagal mengirim email reset password');
+  }
+};
+module.exports = {
+  sendVerificationEmail,
+  sendTicketConfirmation,
+  sendPasswordResetEmail
+}; 

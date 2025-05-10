@@ -1,0 +1,24 @@
+const User = require('../models/User');
+const { logger } = require('../utils/logger');
+const creatorAuth = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+    
+    const allowedRoles = ['creator', 'staff_creator', 'admin'];
+    
+    if (!allowedRoles.includes(user.role)) {
+      logger.warn(`Unauthorized creator access attempt by: ${user.email} (${user.role})`);
+      return res.status(403).json({ message: 'Hanya creator, staff creator, atau admin yang dapat mengakses fitur ini' });
+    }
+    
+    next();
+  } catch (error) {
+    logger.error(`Creator authorization error: ${error.message}`);
+    res.status(500).json({ message: 'Terjadi kesalahan saat otorisasi' });
+  }
+};
+module.exports = creatorAuth; 
