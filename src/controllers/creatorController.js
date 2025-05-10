@@ -693,6 +693,99 @@ const getBulkEventStatistics = async (req, res) => {
   }
 };
 
+const getCreatorsByType = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Validasi tipe organisasi
+    const validTypes = [
+      'himpunan', 'ukm', 'bem', 'fakultas', 'departemen', 
+      'komunitas', 'kepanitiaan', 'eksternal', 'startup', 
+      'paguyuban', 'studyclub', 'lainnya'
+    ];
+
+    if (type !== 'all' && !validTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tipe organisasi tidak valid'
+      });
+    }
+
+    // Dapatkan ID creator yang telah diverifikasi dengan tipe organisasi tertentu
+    const verifications = await CreatorVerification.find({
+      status: 'approved',
+      ...(type !== 'all' && { organizationType: type })
+    }).select('user organizationName organizationType').populate('user', 'name email profileImage');
+
+    const userIds = verifications.map(v => v.user._id);
+
+    // Dapatkan informasi tambahan seperti jumlah event, rating, dll
+    const aggregationPipeline = [
+      { $match: { creator: { $in: userIds } } },
+      { $group: { 
+        _id: '$creator', 
+        eventCount: { $sum: 1 },
+        avgRating: { $avg: '$rating' },
+        upcomingEvents: { 
+          $sum: { 
+            $cond: [
+              { $gt: ['$eventDate', new Date()] }, 
+              1, 
+              0
+            ] 
+          } 
+        }
+      }}
+    ];
+
+    const eventStats = await Event.aggregate(aggregationPipeline);
+    
+    // Map statistics ke creators
+    const creatorsWithStats = verifications.map(verification => {
+      const stats = eventStats.find(stat => 
+        stat._id.toString() === verification.user._id.toString()
+      ) || { eventCount: 0, avgRating: 0, upcomingEvents: 0 };
+      
+      return {
+        id: verification.user._id,
+        name: verification.user.name,
+        email: verification.user.email,
+        profileImage: verification.user.profileImage,
+        organizationName: verification.organizationName,
+        organizationType: verification.organizationType,
+        eventCount: stats.eventCount || 0,
+        avgRating: stats.avgRating || 0,
+        upcomingEvents: stats.upcomingEvents || 0
+      };
+    });
+
+    // Pagination
+    const total = creatorsWithStats.length;
+    const paginatedCreators = creatorsWithStats.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      creators: paginatedCreators,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    logger.error(`Get creators by type error: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mencari creator berdasarkan tipe',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getDashboard,
   getEventStatistics,
@@ -714,5 +807,6 @@ module.exports = {
   duplicateEvent,
   bulkExportEventData,
   bulkDeleteEvents,
-  getBulkEventStatistics
+  getBulkEventStatistics,
+  getCreatorsByType
 };

@@ -14,7 +14,20 @@ const creatorVerificationSchema = new mongoose.Schema({
   },
   organizationType: {
     type: String,
-    enum: ['himpunan', 'ukm', 'fakultas', 'departemen', 'komunitas', 'lainnya'],
+    enum: [
+      'himpunan', // Himpunan Mahasiswa
+      'ukm', // Unit Kegiatan Mahasiswa
+      'bem', // Badan Eksekutif Mahasiswa
+      'fakultas', // Organisasi tingkat fakultas
+      'departemen', // Organisasi tingkat departemen/jurusan
+      'komunitas', // Komunitas informal
+      'kepanitiaan', // Kepanitiaan event
+      'eksternal', // Organisasi non-kampus
+      'startup', // Startup mahasiswa
+      'paguyuban', // Paguyuban daerah/alumni
+      'studyclub', // Kelompok studi
+      'lainnya' // Lainnya
+    ],
     required: true
   },
   phoneNumber: {
@@ -53,5 +66,10 @@ const creatorVerificationSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Indeks untuk meningkatkan performa query
+creatorVerificationSchema.index({ organizationType: 1 });
+creatorVerificationSchema.index({ status: 1 });
+creatorVerificationSchema.index({ status: 1, organizationType: 1 });  // Indeks kompositd
 
 module.exports = mongoose.model('CreatorVerification', creatorVerificationSchema);

@@ -6,6 +6,9 @@ const { documentUpload, handleUploadError } = require('../utils/uploadConfig');
 const router = express.Router();
 const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware');
 
+// Public routes that don't require authentication
+router.get('/types/:type', creatorController.getCreatorsByType);
+
 router.use(authenticate);
 router.use(authenticateJWT);
 router.use(authorizeRole(['creator', 'admin']));

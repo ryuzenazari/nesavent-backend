@@ -337,6 +337,13 @@ npm run seed:db
   - Penggabungan komunitas antar creator
   - Statistik perbandingan performa kolaborasi
 
+- **Kategorisasi Creator**
+  - Klasifikasi creator berdasarkan jenis organisasi (Himpunan, UKM, BEM, dll)
+  - Filter dan pencarian creator berdasarkan tipe organisasi
+  - Profil khusus untuk setiap tipe creator dengan fitur yang disesuaikan
+  - Statistik dan performa berdasarkan kategori creator
+  - Komunitas dan forum spesifik berdasarkan jenis organisasi
+
 ### Sistem Backup & Keamanan Data
 
 - **Backup Otomatis**
