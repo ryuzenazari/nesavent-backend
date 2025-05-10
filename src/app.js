@@ -32,6 +32,7 @@ const { rateLimiters } = require('./middleware/rateLimiter');
 const monitoringRoutes = require('./routes/monitoringRoutes');
 const { measureMiddleware } = require('./services/performanceMonitoringService');
 const errorTracker = require('./services/errorTrackingService');
+const userRoutes = require('./routes/userRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 app.set('view engine', 'ejs');
@@ -114,6 +115,7 @@ app.use('/api', creatorFollowRoutes);
 app.use('/api/reports', abuseReportRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/s', shortLinkRoutes);
+app.use('/api/user', userRoutes);
 app.use((req, res, next) => {
   const error = new Error('Tidak ditemukan');
   error.status = 404;

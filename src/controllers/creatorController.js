@@ -6,6 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const Event = require('../models/Event');
 const { sendEmail } = require('../utils/emailSender');
+const creatorDashboardService = require('../services/creatorDashboardService');
+const eventTemplateService = require('../services/eventTemplateService');
+const payoutService = require('../services/payoutService');
+const multiEventService = require('../services/multiEventService');
 
 exports.submitVerification = async (req, res) => {
   try {
@@ -394,4 +398,321 @@ exports.removeStaff = async (req, res) => {
       error: error.message
     });
   }
+};
+
+const getDashboard = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const dashboard = await creatorDashboardService.getCreatorDashboard(creatorId);
+    res.status(200).json(dashboard);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getEventStatistics = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const eventId = req.params.eventId;
+    const statistics = await creatorDashboardService.getEventStatistics(creatorId, eventId);
+    res.status(200).json(statistics);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createEventTemplate = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    
+    const creatorId = req.user.id;
+    const templateData = req.body;
+    
+    const template = await eventTemplateService.createTemplate(creatorId, templateData);
+    res.status(201).json(template);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getEventTemplates = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const filter = {
+      category: req.query.category,
+      isPublic: req.query.isPublic !== undefined ? req.query.isPublic === 'true' : undefined
+    };
+    
+    const templates = await eventTemplateService.getTemplates(creatorId, filter);
+    res.status(200).json(templates);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getEventTemplateById = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const templateId = req.params.templateId;
+    
+    const template = await eventTemplateService.getTemplateById(creatorId, templateId);
+    res.status(200).json(template);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateEventTemplate = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    
+    const creatorId = req.user.id;
+    const templateId = req.params.templateId;
+    const updateData = req.body;
+    
+    const template = await eventTemplateService.updateTemplate(creatorId, templateId, updateData);
+    res.status(200).json(template);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteEventTemplate = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const templateId = req.params.templateId;
+    
+    const result = await eventTemplateService.deleteTemplate(creatorId, templateId);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createEventFromTemplate = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    
+    const creatorId = req.user.id;
+    const templateId = req.params.templateId;
+    const eventData = req.body;
+    
+    const event = await eventTemplateService.createEventFromTemplate(creatorId, templateId, eventData);
+    res.status(201).json(event);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPublicTemplates = async (req, res) => {
+  try {
+    const category = req.query.category;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+    
+    const templates = await eventTemplateService.getPublicTemplates(category, limit);
+    res.status(200).json(templates);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPendingPayout = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const pendingPayout = await payoutService.calculatePendingPayout(creatorId);
+    res.status(200).json(pendingPayout);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const requestPayout = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    
+    const creatorId = req.user.id;
+    const paymentData = {
+      creatorId,
+      paymentMethod: req.body.paymentMethod,
+      bankDetails: req.body.bankDetails,
+      eWalletDetails: req.body.eWalletDetails,
+      paypalDetails: req.body.paypalDetails,
+      otherPaymentDetails: req.body.otherPaymentDetails
+    };
+    
+    const payout = await payoutService.createPayout(paymentData);
+    res.status(201).json(payout);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPayouts = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const status = req.query.status;
+    
+    const payouts = await payoutService.getPayouts(creatorId, status);
+    res.status(200).json(payouts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPayoutById = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const payoutId = req.params.payoutId;
+    
+    const payout = await payoutService.getPayoutById(creatorId, payoutId);
+    res.status(200).json(payout);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const cancelPayout = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const payoutId = req.params.payoutId;
+    const reason = req.body.reason;
+    
+    const result = await payoutService.cancelPayout(creatorId, payoutId, reason);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPayoutSummary = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    
+    const summary = await payoutService.getPayoutSummary(creatorId);
+    res.status(200).json(summary);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getCreatorEvents = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const filters = {
+      status: req.query.status,
+      category: req.query.category,
+      timeframe: req.query.timeframe,
+      search: req.query.search,
+      sort: req.query.sort,
+      page: req.query.page ? parseInt(req.query.page) : 1,
+      limit: req.query.limit ? parseInt(req.query.limit) : null
+    };
+    
+    const events = await multiEventService.getCreatorEvents(creatorId, filters);
+    res.status(200).json(events);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const bulkUpdateEventStatus = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    
+    const creatorId = req.user.id;
+    const { eventIds, status } = req.body;
+    
+    const result = await multiEventService.bulkUpdateEventStatus(creatorId, eventIds, status);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const duplicateEvent = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const eventId = req.params.eventId;
+    const overrideData = req.body;
+    
+    const event = await multiEventService.duplicateEvent(creatorId, eventId, overrideData);
+    res.status(201).json(event);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const bulkExportEventData = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const eventIds = req.body.eventIds;
+    
+    const exportData = await multiEventService.bulkExportEventData(creatorId, eventIds);
+    res.status(200).json(exportData);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const bulkDeleteEvents = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const eventIds = req.body.eventIds;
+    
+    const result = await multiEventService.bulkDeleteEvents(creatorId, eventIds);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getBulkEventStatistics = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const timeframe = req.query.timeframe || '30days';
+    
+    const statistics = await multiEventService.getBulkEventStatistics(creatorId, timeframe);
+    res.status(200).json(statistics);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  getDashboard,
+  getEventStatistics,
+  createEventTemplate,
+  getEventTemplates,
+  getEventTemplateById,
+  updateEventTemplate,
+  deleteEventTemplate,
+  createEventFromTemplate,
+  getPublicTemplates,
+  getPendingPayout,
+  requestPayout,
+  getPayouts,
+  getPayoutById,
+  cancelPayout,
+  getPayoutSummary,
+  getCreatorEvents,
+  bulkUpdateEventStatus,
+  duplicateEvent,
+  bulkExportEventData,
+  bulkDeleteEvents,
+  getBulkEventStatistics
 };
