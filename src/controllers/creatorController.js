@@ -702,7 +702,7 @@ const getCreatorsByType = async (req, res) => {
 
     // Validasi tipe organisasi
     const validTypes = [
-      'himpunan', 'ukm', 'bem', 'fakultas', 'departemen', 
+      'himpunan', 'ukm', 'bem', 'fakultas', 'jurusan', 
       'komunitas', 'kepanitiaan', 'eksternal', 'startup', 
       'paguyuban', 'studyclub', 'lainnya'
     ];

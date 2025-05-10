@@ -19,7 +19,7 @@ const creatorVerificationSchema = new mongoose.Schema({
       'ukm', // Unit Kegiatan Mahasiswa
       'bem', // Badan Eksekutif Mahasiswa
       'fakultas', // Organisasi tingkat fakultas
-      'departemen', // Organisasi tingkat departemen/jurusan
+      'jurusan', // Organisasi tingkat jurusan/prodi
       'komunitas', // Komunitas informal
       'kepanitiaan', // Kepanitiaan event
       'eksternal', // Organisasi non-kampus

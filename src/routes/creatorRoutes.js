@@ -21,7 +21,7 @@ router.post(
     body('organizationName').notEmpty().withMessage('Nama organisasi wajib diisi'),
     body('organizationType')
       .notEmpty()
-      .isIn(['himpunan', 'ukm', 'fakultas', 'departemen', 'komunitas', 'lainnya'])
+      .isIn(['himpunan', 'ukm', 'bem', 'fakultas', 'jurusan', 'komunitas', 'kepanitiaan', 'eksternal', 'startup', 'paguyuban', 'studyclub', 'lainnya'])
       .withMessage('Tipe organisasi tidak valid'),
     body('phoneNumber').notEmpty().withMessage('Nomor telepon wajib diisi'),
     body('description').notEmpty().withMessage('Deskripsi wajib diisi')
