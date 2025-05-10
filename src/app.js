@@ -25,6 +25,7 @@ const ratingRoutes = require('./routes/ratingRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
 const socialShareRoutes = require('./routes/socialShareRoutes');
 const creatorFollowRoutes = require('./routes/creatorFollowRoutes');
+const abuseReportRoutes = require('./routes/abuseReportRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 app.set('view engine', 'ejs');
@@ -95,6 +96,7 @@ app.use('/api', ratingRoutes);
 app.use('/api', feedbackRoutes);
 app.use('/api', socialShareRoutes);
 app.use('/api', creatorFollowRoutes);
+app.use('/api/reports', abuseReportRoutes);
 app.use('/s', shortLinkRoutes);
 app.use((req, res, next) => {
   const error = new Error('Tidak ditemukan');

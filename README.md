@@ -32,21 +32,21 @@ NesaVent adalah platform penjualan tiket event untuk komunitas kampus di Surabay
 
 1. Clone repository
    ```bash
-   git clone https://github.com/username/nesavent.git
-   cd nesavent
-   ```
+git clone https://github.com/username/nesavent.git
+cd nesavent
+```
 
 2. Install dependencies
    ```bash
-   npm install
-   ```
+npm install
+```
 
 3. Setup file `.env` dengan credentials yang diperlukan
 
 4. Jalankan server
    ```bash
-   npm run dev
-   ```
+npm run dev
+```
 
 ## Fitur Lengkap
 
