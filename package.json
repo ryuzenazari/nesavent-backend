@@ -5,17 +5,19 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "create:admin": "node src/utils/createAdmin.js",
+    "test": "jest",
+    "create:admin": "node src/createAdmin.js",
     "reset:admin": "node src/utils/resetAdminPassword.js",
     "test:all-in-one": "node tests/testAllApi.js",
-    "seed:db": "node src/utils/seedDb.js",
+    "seed:db": "node src/seedDb.js",
     "test:tickets": "node tests/testTicketTypes.js",
     "test:ticket-management": "node tests/testTicketManagement.js",
     "test:comprehensive": "node tests/testComprehensive.js",
     "test:api": "node tests/testApi.js",
     "test:shortlink": "node tests/testShortLink.js",
     "test:all": "node tests/testAll.js",
-    "test:transfer": "node tests/testTicketTransfer.js"
+    "test:transfer": "node tests/testTicketTransfer.js",
+    "migrate:social": "node src/migrations/addSocialEngagementFields.js"
   },
   "keywords": [],
   "author": "",
@@ -27,6 +29,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "ejs": "^3.1.10",
+    "exceljs": "^4.4.0",
     "express": "^4.18.2",
     "express-rate-limit": "^7.5.0",
     "express-validator": "^7.2.1",
@@ -41,6 +44,7 @@
     "nodemailer": "^7.0.3",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
+    "pdfkit": "^0.17.1",
     "qrcode": "^1.5.4",
     "rate-limit-redis": "^4.2.0",
     "uuid": "^11.1.0",
@@ -49,6 +53,7 @@
   "devDependencies": {
     "jest": "^29.7.0",
     "nodemon": "^3.1.10",
+    "prettier": "^3.5.3",
     "supertest": "^6.3.4"
   }
 }

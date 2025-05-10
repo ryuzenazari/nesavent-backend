@@ -1,52 +1,1 @@
-const mongoose = require('mongoose');
-const transactionSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  tickets: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Ticket'
-  }],
-  amount: {
-    type: Number,
-    required: true
-  },
-  paymentMethod: {
-    type: String,
-    required: true
-  },
-  paymentStatus: {
-    type: String,
-    enum: ['pending', 'completed', 'failed', 'refunded'],
-    default: 'pending'
-  },
-  paymentId: {
-    type: String
-  },
-  transactionId: {
-    type: String,
-    unique: true
-  },
-  midtransRedirectUrl: {
-    type: String
-  },
-  midtransToken: {
-    type: String
-  },
-  midtransOrderId: {
-    type: String
-  },
-  midtransResponse: {
-    type: Object
-  }
-}, { timestamps: true });
-transactionSchema.pre('save', function(next) {
-  if (!this.transactionId) {
-    this.transactionId = `TRANS-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-  }
-  next();
-});
-const Transaction = mongoose.model('Transaction', transactionSchema);
-module.exports = Transaction; 
+const mongoose = require('mongoose');const transactionSchema = new mongoose.Schema(  {    user: {      type: mongoose.Schema.Types.ObjectId,      ref: 'User',      required: true    },    tickets: [      {        type: mongoose.Schema.Types.ObjectId,        ref: 'Ticket'      }    ],    amount: {      type: Number,      required: true    },    paymentMethod: {      type: String,      required: true    },    paymentStatus: {      type: String,      enum: ['pending', 'completed', 'failed', 'refunded'],      default: 'pending'    },    paymentId: {      type: String    },    transactionId: {      type: String,      unique: true    },    midtransRedirectUrl: {      type: String    },    midtransToken: {      type: String    },    midtransOrderId: {      type: String    },    midtransResponse: {      type: Object    }  },  {    timestamps: true  });transactionSchema.pre('save', function (next) {  if (!this.transactionId) {    this.transactionId = `TRANS-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;  }  next();});const Transaction = mongoose.model('Transaction', transactionSchema);module.exports = Transaction;

@@ -1,301 +1,1 @@
-const { validationResult } = require('express-validator');
-const User = require('../models/User');
-const Event = require('../models/Event');
-const Ticket = require('../models/Ticket');
-const Transaction = require('../models/Transaction');
-const CreatorVerification = require('../models/CreatorVerification');
-const logger = require('../utils/logger');
-const fs = require('fs');
-const path = require('path');
-exports.verifyUser = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-    const { email } = req.body;
-    
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User dengan email tersebut tidak ditemukan'
-      });
-    }
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationTokenExpires = undefined;
-    await user.save();
-    logger.info(`User ${email} diverifikasi oleh admin ${req.user.email}`);
-    res.status(200).json({
-      success: true,
-      message: 'User berhasil diverifikasi',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isVerified: user.isVerified
-      }
-    });
-  } catch (error) {
-    logger.error(`Admin verify user error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat memverifikasi user',
-      error: error.message
-    });
-  }
-};
-exports.deleteUser = async (req, res) => {
-  try {
-    const userId = req.params.id;
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User tidak ditemukan'
-      });
-    }
-    if (user.role === 'admin' && req.user._id.toString() !== userId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Tidak dapat menghapus akun admin lain'
-      });
-    }
-    const userInfo = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    };
-    await Ticket.deleteMany({ user: userId });
-    await Transaction.deleteMany({ user: userId });
-    await User.findByIdAndDelete(userId);
-    logger.info(`User ${userInfo.email} dihapus oleh admin ${req.user.email}`);
-    res.status(200).json({
-      success: true,
-      message: 'User berhasil dihapus',
-      deletedUser: userInfo
-    });
-  } catch (error) {
-    logger.error(`Admin delete user error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat menghapus user',
-      error: error.message
-    });
-  }
-};
-exports.getAllUsers = async (req, res) => {
-  try {
-    const users = await User.find({}, '-password -verificationToken -resetPasswordToken')
-      .sort({ createdAt: -1 });
-    res.status(200).json({
-      success: true,
-      count: users.length,
-      users
-    });
-  } catch (error) {
-    logger.error(`Admin get all users error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat mengambil daftar user',
-      error: error.message
-    });
-  }
-};
-exports.getUserById = async (req, res) => {
-  try {
-    const userId = req.params.id;
-    const user = await User.findById(userId, '-password -verificationToken -resetPasswordToken');
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User tidak ditemukan'
-      });
-    }
-    const tickets = await Ticket.find({ user: userId })
-      .populate({
-        path: 'event',
-        select: 'title date time location organizer'
-      })
-      .sort({ createdAt: -1 });
-    const transactions = await Transaction.find({ user: userId })
-      .sort({ createdAt: -1 });
-    res.status(200).json({
-      success: true,
-      user,
-      tickets,
-      transactions
-    });
-  } catch (error) {
-    logger.error(`Admin get user by id error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat mengambil detail user',
-      error: error.message
-    });
-  }
-};
-exports.getCreatorVerifications = async (req, res) => {
-  try {
-    const status = req.query.status || 'pending'; 
-    
-    const verifications = await CreatorVerification.find({ status })
-      .populate('user', 'name email profileImage')
-      .sort({ createdAt: -1 });
-    
-    res.status(200).json({
-      success: true,
-      count: verifications.length,
-      verifications
-    });
-  } catch (error) {
-    logger.error(`Admin get creator verifications error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat mengambil daftar permintaan verifikasi',
-      error: error.message
-    });
-  }
-};
-exports.getCreatorVerificationById = async (req, res) => {
-  try {
-    const verificationId = req.params.id;
-    
-    const verification = await CreatorVerification.findById(verificationId)
-      .populate('user', 'name email role profileImage');
-    
-    if (!verification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Permintaan verifikasi tidak ditemukan'
-      });
-    }
-    
-    res.status(200).json({
-      success: true,
-      verification
-    });
-  } catch (error) {
-    logger.error(`Admin get creator verification detail error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat mengambil detail permintaan verifikasi',
-      error: error.message
-    });
-  }
-};
-exports.approveCreatorVerification = async (req, res) => {
-  try {
-    const verificationId = req.params.id;
-    const { adminNotes } = req.body;
-    
-    const verification = await CreatorVerification.findById(verificationId)
-      .populate('user');
-    
-    if (!verification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Permintaan verifikasi tidak ditemukan'
-      });
-    }
-    
-    if (verification.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Permintaan verifikasi sudah ${verification.status}`
-      });
-    }
-    
-    verification.status = 'approved';
-    verification.adminNotes = adminNotes || '';
-    verification.reviewedBy = req.user._id;
-    verification.reviewedAt = new Date();
-    await verification.save();
-    
-    const user = await User.findById(verification.user._id);
-    user.role = 'creator';
-    await user.save();
-    
-    logger.info(`Creator verification for ${user.email} approved by admin ${req.user.email}`);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Permintaan verifikasi creator berhasil disetujui',
-      verification: {
-        id: verification._id,
-        status: verification.status,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role
-        }
-      }
-    });
-  } catch (error) {
-    logger.error(`Admin approve creator verification error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat menyetujui permintaan verifikasi',
-      error: error.message
-    });
-  }
-};
-exports.rejectCreatorVerification = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-    
-    const verificationId = req.params.id;
-    const { rejectionReason, adminNotes } = req.body;
-    
-    const verification = await CreatorVerification.findById(verificationId)
-      .populate('user');
-    
-    if (!verification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Permintaan verifikasi tidak ditemukan'
-      });
-    }
-    
-    if (verification.status !== 'pending') {
-      return res.status(400).json({
-        success: false,
-        message: `Permintaan verifikasi sudah ${verification.status}`
-      });
-    }
-    
-    verification.status = 'rejected';
-    verification.rejectionReason = rejectionReason;
-    verification.adminNotes = adminNotes || '';
-    verification.reviewedBy = req.user._id;
-    verification.reviewedAt = new Date();
-    await verification.save();
-    
-    logger.info(`Creator verification for ${verification.user.email} rejected by admin ${req.user.email}`);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Permintaan verifikasi creator ditolak',
-      verification: {
-        id: verification._id,
-        status: verification.status,
-        rejectionReason
-      }
-    });
-  } catch (error) {
-    logger.error(`Admin reject creator verification error: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Terjadi kesalahan saat menolak permintaan verifikasi',
-      error: error.message
-    });
-  }
-}; 
+const { validationResult } = require('express-validator');const User = require('../models/User');const Event = require('../models/Event');const Ticket = require('../models/Ticket');const Transaction = require('../models/Transaction');const CreatorVerification = require('../models/CreatorVerification');const logger = require('../utils/logger');const fs = require('fs');const path = require('path');exports.verifyUser = async (req, res) => {  try {    const errors = validationResult(req);    if (!errors.isEmpty()) {      return res.status(400).json({        errors: errors.array()      });    }    const { email } = req.body;    const user = await User.findOne({      email    });    if (!user) {      return res.status(404).json({        success: false,        message: 'User dengan email tersebut tidak ditemukan'      });    }    user.isVerified = true;    user.verificationToken = undefined;    user.verificationTokenExpires = undefined;    await user.save();    logger.info(`User ${email} diverifikasi oleh admin ${req.user.email}`);    res.status(200).json({      success: true,      message: 'User berhasil diverifikasi',      user: {        id: user._id,        name: user.name,        email: user.email,        role: user.role,        isVerified: user.isVerified      }    });  } catch (error) {    logger.error(`Admin verify user error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat memverifikasi user',      error: error.message    });  }};exports.deleteUser = async (req, res) => {  try {    const userId = req.params.id;    const user = await User.findById(userId);    if (!user) {      return res.status(404).json({        success: false,        message: 'User tidak ditemukan'      });    }    if (user.role === 'admin' && req.user._id.toString() !== userId) {      return res.status(403).json({        success: false,        message: 'Tidak dapat menghapus akun admin lain'      });    }    const userInfo = {      id: user._id,      name: user.name,      email: user.email,      role: user.role    };    await Ticket.deleteMany({      user: userId    });    await Transaction.deleteMany({      user: userId    });    await User.findByIdAndDelete(userId);    logger.info(`User ${userInfo.email} dihapus oleh admin ${req.user.email}`);    res.status(200).json({      success: true,      message: 'User berhasil dihapus',      deletedUser: userInfo    });  } catch (error) {    logger.error(`Admin delete user error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat menghapus user',      error: error.message    });  }};exports.getAllUsers = async (req, res) => {  try {    const users = await User.find({}, '-password -verificationToken -resetPasswordToken').sort({      createdAt: -1    });    res.status(200).json({      success: true,      count: users.length,      users    });  } catch (error) {    logger.error(`Admin get all users error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat mengambil daftar user',      error: error.message    });  }};exports.getUserById = async (req, res) => {  try {    const userId = req.params.id;    const user = await User.findById(userId, '-password -verificationToken -resetPasswordToken');    if (!user) {      return res.status(404).json({        success: false,        message: 'User tidak ditemukan'      });    }    const tickets = await Ticket.find({      user: userId    })      .populate({        path: 'event',        select: 'title date time location organizer'      })      .sort({        createdAt: -1      });    const transactions = await Transaction.find({      user: userId    }).sort({      createdAt: -1    });    res.status(200).json({      success: true,      user,      tickets,      transactions    });  } catch (error) {    logger.error(`Admin get user by id error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat mengambil detail user',      error: error.message    });  }};exports.getCreatorVerifications = async (req, res) => {  try {    const status = req.query.status || 'pending';    const verifications = await CreatorVerification.find({      status    })      .populate('user', 'name email profileImage')      .sort({        createdAt: -1      });    res.status(200).json({      success: true,      count: verifications.length,      verifications    });  } catch (error) {    logger.error(`Admin get creator verifications error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat mengambil daftar permintaan verifikasi',      error: error.message    });  }};exports.getCreatorVerificationById = async (req, res) => {  try {    const verificationId = req.params.id;    const verification = await CreatorVerification.findById(verificationId).populate(      'user',      'name email role profileImage'    );    if (!verification) {      return res.status(404).json({        success: false,        message: 'Permintaan verifikasi tidak ditemukan'      });    }    res.status(200).json({      success: true,      verification    });  } catch (error) {    logger.error(`Admin get creator verification detail error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat mengambil detail permintaan verifikasi',      error: error.message    });  }};exports.approveCreatorVerification = async (req, res) => {  try {    const verificationId = req.params.id;    const { adminNotes } = req.body;    const verification = await CreatorVerification.findById(verificationId).populate('user');    if (!verification) {      return res.status(404).json({        success: false,        message: 'Permintaan verifikasi tidak ditemukan'      });    }    if (verification.status !== 'pending') {      return res.status(400).json({        success: false,        message: `Permintaan verifikasi sudah ${verification.status}`      });    }    verification.status = 'approved';    verification.adminNotes = adminNotes || '';    verification.reviewedBy = req.user._id;    verification.reviewedAt = new Date();    await verification.save();    const user = await User.findById(verification.user._id);    user.role = 'creator';    await user.save();    logger.info(`Creator verification for ${user.email} approved by admin ${req.user.email}`);    res.status(200).json({      success: true,      message: 'Permintaan verifikasi creator berhasil disetujui',      verification: {        id: verification._id,        status: verification.status,        user: {          id: user._id,          name: user.name,          email: user.email,          role: user.role        }      }    });  } catch (error) {    logger.error(`Admin approve creator verification error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat menyetujui permintaan verifikasi',      error: error.message    });  }};exports.rejectCreatorVerification = async (req, res) => {  try {    const errors = validationResult(req);    if (!errors.isEmpty()) {      return res.status(400).json({        errors: errors.array()      });    }    const verificationId = req.params.id;    const { rejectionReason, adminNotes } = req.body;    const verification = await CreatorVerification.findById(verificationId).populate('user');    if (!verification) {      return res.status(404).json({        success: false,        message: 'Permintaan verifikasi tidak ditemukan'      });    }    if (verification.status !== 'pending') {      return res.status(400).json({        success: false,        message: `Permintaan verifikasi sudah ${verification.status}`      });    }    verification.status = 'rejected';    verification.rejectionReason = rejectionReason;    verification.adminNotes = adminNotes || '';    verification.reviewedBy = req.user._id;    verification.reviewedAt = new Date();    await verification.save();    logger.info(      `Creator verification for ${verification.user.email} rejected by admin ${req.user.email}`    );    res.status(200).json({      success: true,      message: 'Permintaan verifikasi creator ditolak',      verification: {        id: verification._id,        status: verification.status,        rejectionReason      }    });  } catch (error) {    logger.error(`Admin reject creator verification error: ${error.message}`);    res.status(500).json({      success: false,      message: 'Terjadi kesalahan saat menolak permintaan verifikasi',      error: error.message    });  }};

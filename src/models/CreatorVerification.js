@@ -1,9 +1,11 @@
 const mongoose = require('mongoose');
+
 const creatorVerificationSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    unique: true
   },
   organizationName: {
     type: String,
@@ -24,10 +26,12 @@ const creatorVerificationSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  documents: [{
-    type: String,
-    required: true
-  }],
+  documents: [
+    {
+      type: String,
+      required: true
+    }
+  ],
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
@@ -46,6 +50,8 @@ const creatorVerificationSchema = new mongoose.Schema({
   reviewedAt: {
     type: Date
   }
-}, { timestamps: true });
-const CreatorVerification = mongoose.model('CreatorVerification', creatorVerificationSchema);
-module.exports = CreatorVerification; 
+}, {
+  timestamps: true
+});
+
+module.exports = mongoose.model('CreatorVerification', creatorVerificationSchema);

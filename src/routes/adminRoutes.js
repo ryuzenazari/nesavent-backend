@@ -1,25 +1,1 @@
-const express = require('express');
-const { body } = require('express-validator');
-const { authenticate, verifyAdmin } = require('../middleware/auth');
-const adminController = require('../controllers/adminController');
-const router = express.Router();
-router.use(authenticate, verifyAdmin);
-router.post('/verify-user', 
-  [
-    body('email').isEmail().withMessage('Email tidak valid')
-  ],
-  adminController.verifyUser
-);
-router.delete('/users/:id', adminController.deleteUser);
-router.get('/users', adminController.getAllUsers);
-router.get('/users/:id', adminController.getUserById);
-router.get('/creator-verifications', adminController.getCreatorVerifications);
-router.get('/creator-verifications/:id', adminController.getCreatorVerificationById);
-router.post('/creator-verifications/:id/approve', adminController.approveCreatorVerification);
-router.post('/creator-verifications/:id/reject',
-  [
-    body('rejectionReason').notEmpty().withMessage('Alasan penolakan wajib diisi')
-  ],
-  adminController.rejectCreatorVerification
-);
-module.exports = router; 
+const express = require('express');const { body } = require('express-validator');const { authenticate, verifyAdmin } = require('../middleware/auth');const adminController = require('../controllers/adminController');const router = express.Router();router.use(authenticate, verifyAdmin);router.post(  '/verify-user',  [body('email').isEmail().withMessage('Email tidak valid')],  adminController.verifyUser);router.delete('/users/:id', adminController.deleteUser);router.get('/users', adminController.getAllUsers);router.get('/users/:id', adminController.getUserById);router.get('/creator-verifications', adminController.getCreatorVerifications);router.get('/creator-verifications/:id', adminController.getCreatorVerificationById);router.post('/creator-verifications/:id/approve', adminController.approveCreatorVerification);router.post(  '/creator-verifications/:id/reject',  [body('rejectionReason').notEmpty().withMessage('Alasan penolakan wajib diisi')],  adminController.rejectCreatorVerification);module.exports = router;

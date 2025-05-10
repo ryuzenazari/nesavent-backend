@@ -7,7 +7,7 @@ NesaVent adalah platform penjualan tiket event untuk komunitas kampus di Surabay
 ## Features
 
 - Authentication user dengan berbagai role (user, student, creator, staff_creator, admin)
-- **Login with Google** (NEW!)
+- **Login with Google**
 - Management event (list, detail, search)
 - Booking dan purchase ticket
 - **Custom ticket types** yang dapat dikonfigurasi oleh creator (name, description, price, quota, dan benefit)
@@ -20,13 +20,15 @@ NesaVent adalah platform penjualan tiket event untuk komunitas kampus di Surabay
 - Email verification untuk user
 - API security dengan rate limiting
 - Activity logging
-- **Short Link system untuk sharing event** (NEW!)
-- **Transfer ticket ke pengguna lain** (NEW!)
+- **Short Link system untuk sharing event**
+- **Transfer ticket ke pengguna lain**
+- **Verifikasi Mahasiswa yang Lebih Fleksibel**
+- **Fitur Sosial & Engagement**
 
 ## User Roles
 
 - **User**: User umum yang dapat membeli regular ticket
-- **Student**: Student (diverifikasi melalui email domain kampus) yang dapat membeli ticket dengan harga khusus
+- **Student**: Student (diverifikasi melalui email domain kampus atau KTM) yang dapat membeli ticket dengan harga khusus
 - **Creator**: Event creator yang dapat membuat dan mengelola event mereka sendiri
 - **Staff Creator**: Staff yang dapat membuat dan mengelola semua event 
 - **Admin**: System administrator dengan full access
@@ -71,7 +73,7 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 4. Buat direktori uploads
 ```
-mkdir -p uploads/events uploads/profiles uploads/documents
+mkdir -p uploads/events uploads/profiles uploads/documents uploads/student_ktm
 ```
 
 5. Jalankan server
@@ -93,6 +95,7 @@ Ini akan mengisi database dengan:
 - User dengan berbagai role (admin, creator, staff, student, user)
 - Event dengan custom ticket types
 - Ticket yang sudah dibeli
+- Request verifikasi mahasiswa
 
 Credentials untuk semua user dalam data awal ini:
 - Password: `password123`
@@ -113,6 +116,51 @@ Credentials untuk semua user dalam data awal ini:
 - `POST /api/auth/forgot-password` - Request password reset
 - `POST /api/auth/reset-password/:token` - Reset password
 - `PUT /api/auth/role` - Update user role (Admin only)
+
+### Student Verification
+- `POST /api/student-verification` - Request verifikasi mahasiswa
+- `GET /api/student-verification` - Melihat status verifikasi mahasiswa
+- `GET /api/student-verification/history` - Melihat riwayat verifikasi mahasiswa
+- `PUT /api/student-verification/:id/approve` - Menyetujui verifikasi mahasiswa (Admin only)
+- `PUT /api/student-verification/:id/reject` - Menolak verifikasi mahasiswa (Admin only)
+- `GET /api/student-verification/admin` - Melihat daftar request verifikasi mahasiswa (Admin only)
+
+### Ratings & Reviews
+- `POST /api/events/:eventId/ratings` - Memberikan rating dan review untuk event
+- `GET /api/events/:eventId/ratings` - Melihat rating dan review event
+- `GET /api/user/ratings` - Melihat rating dan review yang diberikan user
+- `PUT /api/ratings/:ratingId` - Mengupdate rating dan review
+- `DELETE /api/ratings/:ratingId` - Menghapus rating dan review
+- `POST /api/ratings/:ratingId/like` - Menyukai review
+- `PUT /api/ratings/:ratingId/flag` - Melaporkan review yang tidak pantas (Admin only)
+
+### Feedback
+- `POST /api/events/:eventId/feedback` - Memberikan feedback untuk event
+- `GET /api/events/:eventId/feedback` - Melihat feedback event
+- `GET /api/events/:eventId/feedback/statistics` - Melihat statistik feedback event (Creator only)
+- `GET /api/user/feedback` - Melihat feedback yang diberikan user
+- `PUT /api/feedback/:feedbackId` - Mengupdate feedback
+- `DELETE /api/feedback/:feedbackId` - Menghapus feedback
+- `POST /api/feedback/:feedbackId/respond` - Merespon feedback (Creator only)
+- `PUT /api/feedback/:feedbackId/status` - Mengubah status feedback (Creator only)
+
+### Social Sharing
+- `POST /api/events/:eventId/share` - Membuat link share untuk event
+- `GET /api/events/:eventId/share-links` - Mendapatkan link share untuk event
+- `GET /api/events/:eventId/shares` - Melihat data share event (Creator only)
+- `GET /api/events/:eventId/shares/statistics` - Melihat statistik share event (Creator only)
+- `GET /api/user/shares` - Melihat history share user
+- `GET /api/track-share/:referralCode` - Melacak click pada link share
+
+### Creator Follow
+- `POST /api/creators/:creatorId/follow` - Follow creator
+- `DELETE /api/creators/:creatorId/follow` - Unfollow creator
+- `GET /api/creators/:creatorId/followers` - Melihat followers creator
+- `GET /api/creators/:creatorId/follow-status` - Melihat status follow creator
+- `PUT /api/creators/:creatorId/notifications` - Mengatur notifikasi creator
+- `GET /api/user/following` - Melihat creator yang difollow user
+- `GET /api/creators/top` - Melihat top creators
+- `GET /api/creators/suggested` - Melihat suggested creators untuk user
 
 ### Events
 - `GET /api/events` - Get semua event
@@ -142,48 +190,6 @@ Credentials untuk semua user dalam data awal ini:
 - `GET /api/notifications` - Mendapatkan daftar notifikasi user
 - `PATCH /api/notifications/:notificationId/read` - Menandai notifikasi sebagai telah dibaca
 - `PATCH /api/notifications/read-all` - Menandai semua notifikasi sebagai telah dibaca
-
-## Testing
-
-Aplikasi ini dilengkapi dengan berbagai jenis testing:
-
-### API Testing
-```
-npm run test:api
-```
-Menjalankan automated testing untuk semua API endpoints utama, termasuk authentication, event management, custom ticket types, dan ticket purchasing.
-
-### Comprehensive Testing
-```
-npm run test:comprehensive
-```
-Comprehensive testing yang memeriksa semua aspek aplikasi, termasuk user data, events, custom ticket types, dan simulasi ticket purchasing.
-
-### All Features Testing
-```
-npm run test:all
-```
-Menjalankan semua testing (comprehensive dan API) secara berurutan.
-
-Atau gunakan script untuk menjalankan semua testing satu per satu:
-```
-# Windows
-run-tests.bat
-
-# Linux/macOS
-./run-tests.sh
-```
-
-### Custom Ticket Testing
-```
-npm run test:tickets
-```
-Testing khusus untuk memeriksa custom tickets yang ada di database
-
-```
-npm run test:ticket-management
-```
-Testing untuk simulasi management ticket types oleh event creator
 
 ## Custom Ticket Types Feature
 
@@ -301,8 +307,8 @@ nesavent/
 ├── uploads/                # Uploaded files
 │   ├── events/             # Event images dan banners
 │   ├── profiles/           # User profile pictures
-│   └── documents/          # Event-related documents
-├── tests/                  # Unit dan integration tests
+│   ├── documents/          # Event-related documents
+│   └── student_ktm/        # KTM uploads for student verification
 ├── .env                    # Environment variables
 └── package.json            # Dependencies dan scripts
 ```
@@ -321,7 +327,7 @@ Command ini akan membuat admin user dengan credentials:
 
 Admin user memiliki access ke semua features, termasuk mengubah role user lain.
 
-## Short Link (New Feature)
+## Short Link ()
 
 NesaVent kini dilengkapi dengan Short Link system yang memungkinkan user untuk:
 
@@ -338,3 +344,81 @@ Untuk menggunakan Short Link feature, akses endpoints berikut:
 
 Event creators juga dapat membuat Short Link untuk event mereka dengan endpoint:
 - `POST /api/events/{id}/shortlink` - Create Short Link khusus untuk event
+
+## Verifikasi Mahasiswa Fleksibel
+
+NesaVent kini mendukung verifikasi mahasiswa yang lebih fleksibel dengan dua opsi:
+
+### Opsi Verifikasi
+1. **Email Kampus** - Mahasiswa dapat memverifikasi status mereka menggunakan email dengan domain kampus
+2. **KTM (Kartu Tanda Mahasiswa)** - Mahasiswa dapat mengupload gambar KTM mereka untuk diverifikasi oleh admin
+
+### Proses Verifikasi
+1. User mengakses halaman verifikasi mahasiswa
+2. User memilih metode verifikasi (email kampus atau upload KTM)
+3. Jika memilih email kampus, sistem akan mengirimkan email verifikasi
+4. Jika memilih KTM, user dapat mengupload gambar KTM mereka
+5. Admin akan mereview dan menyetujui atau menolak request verifikasi
+6. User akan menerima notifikasi tentang status verifikasi mereka
+7. Setelah diverifikasi, role user akan terupdate menjadi "student" dan dapat membeli tiket khusus mahasiswa
+
+### Keuntungan
+- Fleksibilitas dalam metode verifikasi
+- Opsi verifikasi instan via email kampus
+- Opsi verifikasi manual via KTM untuk mahasiswa yang tidak memiliki email kampus
+- Riwayat verifikasi tersimpan untuk tujuan audit
+- Update status otomatis setelah verifikasi berhasil
+
+### API Endpoints
+- `POST /api/student-verification` - Request verifikasi mahasiswa
+- `GET /api/student-verification` - Melihat status verifikasi mahasiswa
+- `GET /api/student-verification/history` - Melihat riwayat verifikasi mahasiswa
+- `PUT /api/student-verification/:id/approve` - Menyetujui verifikasi mahasiswa (Admin only)
+- `PUT /api/student-verification/:id/reject` - Menolak verifikasi mahasiswa (Admin only)
+- `GET /api/student-verification/admin` - Melihat daftar request verifikasi mahasiswa (Admin only)
+
+## Fitur Sosial & Engagement
+
+NesaVent kini dilengkapi dengan berbagai fitur sosial dan engagement untuk meningkatkan interaksi user, mendapatkan feedback, dan mendorong pertumbuhan komunitas.
+
+### Rating & Review System
+- Rating bintang 1-5 untuk setiap event
+- Review detail dengan teks dan opsional gambar
+- Like untuk review yang bermanfaat dari user lain
+- Sistem moderasi untuk menandai review yang tidak pantas
+- Skor rating rata-rata ditampilkan pada event
+- Pengelompokan review berdasarkan rating dan sortir (terbaru, tertinggi, terendah)
+
+### Social Sharing
+- Berbagi event langsung ke berbagai platform media sosial (Facebook, Twitter, WhatsApp, Telegram, Instagram)
+- Short link otomatis untuk sharing
+- Tracking click dan conversion untuk link share
+- Analitik performa share untuk creator event
+- Referral code untuk atribusi tiket yang terjual dari share
+
+### Feedback System
+- Feedback terstruktur dengan kategori (venue, organisasi, konten, pembicara, fasilitas, harga)
+- Tipe feedback yang dapat dipilih (saran, keluhan, apresiasi, pertanyaan)
+- Opsi anonim untuk feedback
+- Respon langsung dari creator event
+- Dashboard statistik feedback untuk penyelenggara
+
+### Creator Follow
+- Follow penyelenggara event favorit
+- Notifikasi untuk event baru dari creator yang diikuti
+- Notifikasi untuk update event
+- Pengaturan preferensi notifikasi (event baru, update, penawaran khusus)
+- Daftar creator yang direkomendasikan berdasarkan preferensi dan riwayat
+
+### Manfaat
+- Meningkatkan engagement dan loyalitas user
+- Mendapatkan insight berharga untuk peningkatan event
+- Memperluas jangkauan event melalui sharing
+- Membangun komunitas di sekitar creator event
+- Memberikan pengalaman yang lebih personal dan terhubung
+
+### API Endpoints Utama
+- Rating & Review: `/api/events/:eventId/ratings`
+- Feedback: `/api/events/:eventId/feedback`
+- Social Sharing: `/api/events/:eventId/share`
+- Creator Follow: `/api/creators/:creatorId/follow`

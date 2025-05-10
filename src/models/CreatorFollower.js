@@ -1,39 +1,1 @@
-const mongoose = require('mongoose');
-
-const creatorFollowerSchema = new mongoose.Schema({
-  creator: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  follower: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  followedAt: {
-    type: Date,
-    default: Date.now
-  },
-  notifications: {
-    newEvents: {
-      type: Boolean,
-      default: true
-    },
-    eventUpdates: {
-      type: Boolean,
-      default: true
-    },
-    specialOffers: {
-      type: Boolean,
-      default: true
-    }
-  }
-}, { timestamps: true });
-
-// Pastikan kombinasi creator dan follower bersifat unik
-creatorFollowerSchema.index({ creator: 1, follower: 1 }, { unique: true });
-
-const CreatorFollower = mongoose.model('CreatorFollower', creatorFollowerSchema);
-
-module.exports = CreatorFollower; 
+const mongoose = require('mongoose');const creatorFollowerSchema = new mongoose.Schema(  {    creator: {      type: mongoose.Schema.Types.ObjectId,      ref: 'User',      required: true    },    follower: {      type: mongoose.Schema.Types.ObjectId,      ref: 'User',      required: true    },    followedAt: {      type: Date,      default: Date.now    },    notifications: {      newEvents: {        type: Boolean,        default: true      },      eventUpdates: {        type: Boolean,        default: true      },      specialOffers: {        type: Boolean,        default: true      }    }  },  {    timestamps: true  });creatorFollowerSchema.index(  {    creator: 1,    follower: 1  },  {    unique: true  });const CreatorFollower = mongoose.model('CreatorFollower', creatorFollowerSchema);module.exports = CreatorFollower;

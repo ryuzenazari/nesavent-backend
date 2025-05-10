@@ -9,11 +9,9 @@ yarn-error.log
 .env.local
 .env.*.local
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# Build output
+dist/
+build/
 
 # Logs
 logs/
@@ -21,11 +19,13 @@ logs/
 
 # Uploads
 uploads/
-public/uploads/
+exports/
 
-# Build
-dist/
-build/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # OS
 .DS_Store

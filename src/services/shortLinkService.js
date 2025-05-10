@@ -1,146 +1,1 @@
-const ShortLink = require('../models/ShortLink');
-const crypto = require('crypto');
-const logger = require('../utils/logger');
-const generateUniqueCode = async (length = 6) => {
-  const allowedChars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let isUnique = false;
-  let code;
-  
-  while (!isUnique) {
-    let randomBytes = crypto.randomBytes(length);
-    code = Array.from(randomBytes)
-      .map(byte => allowedChars[byte % allowedChars.length])
-      .join('');
-    
-    const existingLink = await ShortLink.findOne({ code });
-    isUnique = !existingLink;
-  }
-  
-  return code;
-};
-const createShortLink = async (linkData, userId) => {
-  try {
-    const code = await generateUniqueCode();
-    
-    const shortLink = new ShortLink({
-      code,
-      targetType: linkData.targetType,
-      createdBy: userId,
-      ...linkData
-    });
-    
-    await shortLink.save();
-    logger.info(`Shortlink dibuat: ${code} untuk ${linkData.targetType} oleh user ${userId}`);
-    
-    return shortLink;
-  } catch (error) {
-    logger.error(`Error saat membuat shortlink: ${error.message}`);
-    throw error;
-  }
-};
-const getShortLink = async (code) => {
-  try {
-    const shortLink = await ShortLink.findOne({ code, isActive: true })
-      .populate('createdBy', 'name email role')
-      .populate('targetId');
-    
-    if (shortLink && shortLink.expiresAt && new Date() > shortLink.expiresAt) {
-      logger.info(`Shortlink ${code} sudah kedaluwarsa`);
-      return null;
-    }
-    
-    return shortLink;
-  } catch (error) {
-    logger.error(`Error saat mengambil shortlink: ${error.message}`);
-    throw error;
-  }
-};
-const recordVisit = async (code) => {
-  try {
-    const result = await ShortLink.updateOne(
-      { code, isActive: true },
-      { $inc: { visits: 1 } }
-    );
-    return result.modifiedCount > 0;
-  } catch (error) {
-    logger.error(`Error saat mencatat kunjungan shortlink: ${error.message}`);
-    return false;
-  }
-};
-const getUserShortLinks = async (userId) => {
-  try {
-    const shortLinks = await ShortLink.find({ createdBy: userId })
-      .sort({ createdAt: -1 })
-      .populate('createdBy', 'name email role')
-      .populate('targetId');
-    
-    return shortLinks;
-  } catch (error) {
-    logger.error(`Error saat mengambil shortlink user: ${error.message}`);
-    throw error;
-  }
-};
-const deleteShortLink = async (code, userId) => {
-  try {
-    const shortLink = await ShortLink.findOne({ code });
-    
-    if (!shortLink) {
-      return false;
-    }
-    
-    if (shortLink.createdBy.toString() !== userId) {
-      const user = await require('../models/User').findById(userId);
-      if (!user || user.role !== 'admin') {
-        return false;
-      }
-    }
-    
-    await ShortLink.deleteOne({ code });
-    logger.info(`Shortlink dihapus: ${code} oleh user ${userId}`);
-    
-    return true;
-  } catch (error) {
-    logger.error(`Error saat menghapus shortlink: ${error.message}`);
-    throw error;
-  }
-};
-const updateShortLink = async (code, updateData, userId) => {
-  try {
-    const shortLink = await ShortLink.findOne({ code });
-    
-    if (!shortLink) {
-      return null;
-    }
-    
-    if (shortLink.createdBy.toString() !== userId) {
-      const user = await require('../models/User').findById(userId);
-      if (!user || user.role !== 'admin') {
-        return null;
-      }
-    }
-    
-    delete updateData.code;
-    
-    const updatedShortLink = await ShortLink.findOneAndUpdate(
-      { code },
-      { $set: updateData },
-      { new: true }
-    );
-    
-    logger.info(`Shortlink diupdate: ${code} oleh user ${userId}`);
-    
-    return updatedShortLink;
-  } catch (error) {
-    logger.error(`Error saat mengupdate shortlink: ${error.message}`);
-    throw error;
-  }
-};
-module.exports = {
-  generateUniqueCode,
-  createShortLink,
-  getShortLink,
-  recordVisit,
-  getUserShortLinks,
-  deleteShortLink,
-  updateShortLink
-}; 
+const ShortLink = require('../models/ShortLink');const crypto = require('crypto');const logger = require('../utils/logger');const generateUniqueCode = async (length = 6) => {  const allowedChars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';  let isUnique = false;  let code;  while (!isUnique) {    let randomBytes = crypto.randomBytes(length);    code = Array.from(randomBytes)      .map(byte => allowedChars[byte % allowedChars.length])      .join('');    const existingLink = await ShortLink.findOne({      code    });    isUnique = !existingLink;  }  return code;};const createShortLink = async (linkData, userId) => {  try {    const code = await generateUniqueCode();    const shortLink = new ShortLink({      code,      targetType: linkData.targetType,      createdBy: userId,      ...linkData    });    await shortLink.save();    logger.info(`Shortlink dibuat: ${code} untuk ${linkData.targetType} oleh user ${userId}`);    return shortLink;  } catch (error) {    logger.error(`Error saat membuat shortlink: ${error.message}`);    throw error;  }};const getShortLink = async code => {  try {    const shortLink = await ShortLink.findOne({      code,      isActive: true    })      .populate('createdBy', 'name email role')      .populate('targetId');    if (shortLink && shortLink.expiresAt && new Date() > shortLink.expiresAt) {      logger.info(`Shortlink ${code} sudah kedaluwarsa`);      return null;    }    return shortLink;  } catch (error) {    logger.error(`Error saat mengambil shortlink: ${error.message}`);    throw error;  }};const recordVisit = async code => {  try {    const result = await ShortLink.updateOne(      {        code,        isActive: true      },      {        $inc: {          visits: 1        }      }    );    return result.modifiedCount > 0;  } catch (error) {    logger.error(`Error saat mencatat kunjungan shortlink: ${error.message}`);    return false;  }};const getUserShortLinks = async userId => {  try {    const shortLinks = await ShortLink.find({      createdBy: userId    })      .sort({        createdAt: -1      })      .populate('createdBy', 'name email role')      .populate('targetId');    return shortLinks;  } catch (error) {    logger.error(`Error saat mengambil shortlink user: ${error.message}`);    throw error;  }};const deleteShortLink = async (code, userId) => {  try {    const shortLink = await ShortLink.findOne({      code    });    if (!shortLink) {      return false;    }    if (shortLink.createdBy.toString() !== userId) {      const user = await require('../models/User').findById(userId);      if (!user || user.role !== 'admin') {        return false;      }    }    await ShortLink.deleteOne({      code    });    logger.info(`Shortlink dihapus: ${code} oleh user ${userId}`);    return true;  } catch (error) {    logger.error(`Error saat menghapus shortlink: ${error.message}`);    throw error;  }};const updateShortLink = async (code, updateData, userId) => {  try {    const shortLink = await ShortLink.findOne({      code    });    if (!shortLink) {      return null;    }    if (shortLink.createdBy.toString() !== userId) {      const user = await require('../models/User').findById(userId);      if (!user || user.role !== 'admin') {        return null;      }    }    delete updateData.code;    const updatedShortLink = await ShortLink.findOneAndUpdate(      {        code      },      {        $set: updateData      },      {        new: true      }    );    logger.info(`Shortlink diupdate: ${code} oleh user ${userId}`);    return updatedShortLink;  } catch (error) {    logger.error(`Error saat mengupdate shortlink: ${error.message}`);    throw error;  }};module.exports = {  generateUniqueCode,  createShortLink,  getShortLink,  recordVisit,  getUserShortLinks,  deleteShortLink,  updateShortLink};
