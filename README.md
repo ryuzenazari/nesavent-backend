@@ -255,6 +255,16 @@ npm run seed:db
 - Query optimization dengan pagination dan filtering
 - Lazy loading untuk gambar dan data
 
+### Monitoring & Maintenance
+- Health check endpoints untuk memantau status sistem
+- Error tracking dengan logging dan alerting
+- Performance monitoring untuk API dan database
+- Automated testing yang lebih luas
+- System metrics dashboard
+- Real-time logging dan analisis
+- Monitoring database connection dan query performance
+- Alerting system untuk kondisi kritis
+
 ## API Endpoints
 
 ### Authentication
@@ -357,6 +367,15 @@ npm run seed:db
 - `GET /api/creator/staff` - Mendapatkan daftar staff
 - `PATCH /api/creator/staff/:staffId` - Memperbarui izin staff
 - `DELETE /api/creator/staff/:staffId` - Menghapus staff
+
+### Monitoring (Admin Only)
+- `GET /api/monitoring/health` - Memeriksa status sistem
+- `GET /api/monitoring/metrics` - Mendapatkan metrics kinerja sistem
+- `GET /api/monitoring/errors` - Melihat riwayat error
+- `GET /api/monitoring/performance` - Metrics performa API
+- `GET /api/monitoring/logs` - Melihat application logs
+- `GET /api/monitoring/system` - Informasi sistem server
+- `POST /api/monitoring/test-alerts` - Menguji sistem alerting
 
 ## Teknologi yang Digunakan
 

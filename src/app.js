@@ -29,6 +29,9 @@ const abuseReportRoutes = require('./routes/abuseReportRoutes');
 const compression = require('compression');
 const { createIndexes } = require('./models/indexes');
 const { rateLimiters } = require('./middleware/rateLimiter');
+const monitoringRoutes = require('./routes/monitoringRoutes');
+const { measureMiddleware } = require('./services/performanceMonitoringService');
+const errorTracker = require('./services/errorTrackingService');
 const app = express();
 const PORT = process.env.PORT || 5000;
 app.set('view engine', 'ejs');
@@ -45,6 +48,7 @@ app.use(morgan('dev'));
 app.use(passport.initialize());
 app.use(loggerMiddleware);
 app.use(compression());
+app.use(measureMiddleware);
 const eventUploadDir = path.join(__dirname, '../uploads/events');
 const profileUploadDir = path.join(__dirname, '../uploads/profiles');
 const documentUploadDir = path.join(__dirname, '../uploads/documents');
@@ -108,6 +112,7 @@ app.use('/api', feedbackRoutes);
 app.use('/api', socialShareRoutes);
 app.use('/api', creatorFollowRoutes);
 app.use('/api/reports', abuseReportRoutes);
+app.use('/api/monitoring', monitoringRoutes);
 app.use('/s', shortLinkRoutes);
 app.use((req, res, next) => {
   const error = new Error('Tidak ditemukan');
@@ -116,10 +121,13 @@ app.use((req, res, next) => {
   next(error);
 });
 app.use((error, req, res, next) => {
+  errorTracker.trackError(error, { req });
+  
   logger.error('Kesalahan server', {
     error: error.message,
     stack: error.stack
   });
+  
   res.status(error.status || 500);
   res.json({
     success: false,
