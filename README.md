@@ -30,22 +30,63 @@ NesaVent adalah platform penjualan tiket event untuk komunitas kampus di Surabay
 
 ## Installation
 
-1. Clone repository
-   ```bash
+### 1. Clone Repository
+```bash
 git clone https://github.com/username/nesavent.git
 cd nesavent
 ```
 
-2. Install dependencies
-   ```bash
+### 2. Install Dependencies
+```bash
 npm install
+# atau jika menggunakan Yarn
+yarn install
 ```
 
-3. Setup file `.env` dengan credentials yang diperlukan
+### 3. Konfigurasi Environment
+Buat file `.env` di root project dengan konfigurasi berikut:
+```
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/nesavent
+JWT_SECRET=your_jwt_secret_key
+JWT_EXPIRES_IN=7d
 
-4. Jalankan server
-   ```bash
+# Email Configuration
+EMAIL_SERVICE=gmail
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
+
+# Midtrans Configuration
+MIDTRANS_CLIENT_KEY=SB-Mid-client-XXXXXXXXXXXXXXXX
+MIDTRANS_SERVER_KEY=SB-Mid-server-XXXXXXXXXXXXXXXX
+MIDTRANS_IS_PRODUCTION=false
+MIDTRANS_SNAP_URL=https://app.sandbox.midtrans.com/snap/snap.js
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+```
+
+### 4. Setup Direktori Uploads
+```bash
+mkdir -p uploads/events uploads/profiles uploads/documents uploads/student_ktm
+```
+
+### 5. Jalankan Server
+```bash
+# Development mode dengan nodemon
 npm run dev
+
+# Production mode
+npm start
+```
+
+Server berjalan di `http://localhost:5000`
+
+### 6. Seeding Database (Opsional)
+Untuk mengisi database dengan data awal:
+```bash
+npm run seed:db
 ```
 
 ## Fitur Lengkap
