@@ -1,33 +1,38 @@
-# NesaVent - Platform Ticketing untuk Event Kampus UNESA
+# 🎫 NesaVent - Platform Ticketing untuk Event Kampus UNESA
 
-NesaVent adalah platform penjualan tiket event untuk komunitas Universitas Negeri Surabaya (UNESA). Aplikasi ini dikembangkan dengan Express.js dan MongoDB, serta terintegrasi dengan Midtrans untuk sistem pembayaran.
-
-<p align="center">
+<div align="center">
   <img src="https://iili.io/3vNeAAX.png" alt="NesaVent Logo" width="200" height="200">
-</p>
+  
+  Platform penjualan tiket event untuk komunitas Universitas Negeri Surabaya (UNESA)
+  
+  [![Node.js](https://img.shields.io/badge/Node.js-v14+-green)](https://nodejs.org)
+  [![Express.js](https://img.shields.io/badge/Express.js-v4.17.1-blue)](https://expressjs.com)
+  [![MongoDB](https://img.shields.io/badge/MongoDB-v4.4+-green)](https://www.mongodb.com)
+  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+</div>
 
-## 🌟 Fitur Utama
+## ✨ Fitur Utama
 
-- **Authentication** dengan berbagai role (JWT & OAuth)
-- **Management event** lengkap dengan tiket khusus mahasiswa
-- **Payment system** terintegrasi Midtrans
-- **QR code** untuk validasi tiket
-- **Email notification** dan verification
-- **Verifikasi Mahasiswa** melalui KTM
-- **Fitur Sosial** (Follow creator, Social sharing)
-- **Rating dan Feedback** event
-- **Shortlink System** untuk sharing event
-- **Analytics dan Reporting** untuk creator
-- **Sistem keamanan** dan monitoring
-- **Redis caching** dan rate limiting
+- 🔐 **Authentication** dengan berbagai role (JWT & OAuth)
+- 🎪 **Management event** lengkap dengan tiket khusus mahasiswa
+- 💳 **Payment system** terintegrasi Midtrans
+- 📱 **QR code** untuk validasi tiket
+- 📧 **Email notification** dan verification
+- 🎓 **Verifikasi Mahasiswa** melalui KTM
+- 👥 **Fitur Sosial** (Follow creator, Social sharing)
+- ⭐ **Rating dan Feedback** event
+- 🔗 **Shortlink System** untuk sharing event
+- 📊 **Analytics dan Reporting** untuk creator
+- 🛡️ **Sistem keamanan** dan monitoring
+- ⚡ **Redis caching** dan rate limiting
 
 ## 👥 User Roles
 
-- **User**: User umum yang dapat membeli regular ticket
-- **Student**: Mahasiswa terverifikasi yang dapat membeli ticket dengan harga khusus
-- **Creator**: Event creator yang dapat membuat dan mengelola event
-- **Staff Creator**: Staff yang membantu creator mengelola event
-- **Admin**: System administrator dengan full access
+- 👤 **User**: User umum yang dapat membeli regular ticket
+- 🎓 **Student**: Mahasiswa terverifikasi yang dapat membeli ticket dengan harga khusus
+- 🎨 **Creator**: Event creator yang dapat membuat dan mengelola event
+- 👨‍💼 **Staff Creator**: Staff yang membantu creator mengelola event
+- 👑 **Admin**: System administrator dengan full access
 
 ## 🛠️ Tech Stack
 
@@ -61,13 +66,11 @@ cd nesavent
 ### 2. Install Dependencies
 ```bash
 npm install
-# atau jika menggunakan Yarn
-yarn install
 ```
 
 ### 3. Konfigurasi Environment
 Buat file `.env` di root project dengan konfigurasi berikut:
-```
+```env
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/nesavent
 JWT_SECRET=your_jwt_secret_key
@@ -128,9 +131,7 @@ npm start
 
 Server berjalan di `http://localhost:5000`
 
-## 💻 Development
-
-### Struktur Direktori
+## 📁 Struktur Direktori
 
 ```
 src/
@@ -145,9 +146,9 @@ src/
 └── app.js          # Entry point aplikasi
 ```
 
-### Script NPM yang tersedia
+## 📜 Script NPM
 
-```
+```bash
 npm start           # Menjalankan server produksi
 npm run dev         # Menjalankan server dengan nodemon (development)
 npm run create:admin # Membuat akun admin pertama
@@ -170,8 +171,6 @@ Anda dapat mengakses dokumentasi API interaktif dengan mengimpor konten YAML dar
 
 ### Integrasi Dokumentasi API ke Aplikasi Express
 
-Anda juga dapat menambahkan Swagger UI ke aplikasi Express dengan menambahkan:
-
 ```javascript
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
@@ -184,22 +183,22 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 ## 🛡️ Security
 
-- **Authentication** menggunakan JWT dengan mekanisme refresh token
-- **Rate Limiting** untuk mencegah brute force dan DDoS
-- **Input Validation** menggunakan express-validator
-- **CORS** dikonfigurasi dengan aman
-- **Helmet** untuk mengamankan HTTP headers
-- **Error Tracking** untuk monitoring vulnerabilitas
-- **Performance Monitoring** untuk mengidentifikasi bottlenecks
+- 🔐 **Authentication** menggunakan JWT dengan mekanisme refresh token
+- 🚫 **Rate Limiting** untuk mencegah brute force dan DDoS
+- ✅ **Input Validation** menggunakan express-validator
+- 🔒 **CORS** dikonfigurasi dengan aman
+- 🪖 **Helmet** untuk mengamankan HTTP headers
+- 🐛 **Error Tracking** untuk monitoring vulnerabilitas
+- 📊 **Performance Monitoring** untuk mengidentifikasi bottlenecks
 
 ## 🔌 Integrasi Pihak Ketiga
 
-- **Midtrans** untuk payment gateway
-- **Google OAuth** untuk login dengan Google
-- **Redis Cloud** untuk distributed caching dan rate limiting
-- **Node Mailer** untuk pengiriman email
-- **QRCode** untuk generasi dan validasi QR Code tiket
-- **ExcelJS** dan **PDFKit** untuk ekspor laporan
+- 💳 **Midtrans** untuk payment gateway
+- 🔑 **Google OAuth** untuk login dengan Google
+- ⚡ **Redis Cloud** untuk distributed caching dan rate limiting
+- 📧 **Node Mailer** untuk pengiriman email
+- 📱 **QRCode** untuk generasi dan validasi QR Code tiket
+- 📄 **ExcelJS** dan **PDFKit** untuk ekspor laporan
 
 ## 🧪 Testing
 
@@ -242,6 +241,6 @@ Copyright © 2025 NesaVent. All rights reserved.
 
 Untuk pertanyaan dan dukungan, hubungi kami di support@nesavent.com atau buat issue di repositori GitHub.
 
-## Disclaimer
+## ⚠️ Disclaimer
 
 NesaVent adalah platform independen dan tidak terafiliasi secara resmi dengan Universitas Negeri Surabaya (UNESA).
