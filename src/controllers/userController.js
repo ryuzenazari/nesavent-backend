@@ -127,6 +127,32 @@ const updateWishlistSettings = async (req, res) => {
   }
 };
 
+const getWishlistSettings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const wishlist = await wishlistService.getUserWishlist(userId);
+    
+    if (!wishlist || !wishlist.settings) {
+      return res.status(200).json({
+        defaultNotifications: {
+          reminders: true,
+          priceDrops: true,
+          limitedTickets: true
+        },
+        autoRemove: {
+          afterPurchase: false,
+          afterEvent: false
+        }
+      });
+    }
+    
+    res.status(200).json(wishlist.settings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getUserEventHistory = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -376,5 +402,6 @@ module.exports = {
   getRedemptionHistory,
   getUserRewardProfile,
   updateRewardSettings,
-  updateUserStreak
+  updateUserStreak,
+  getWishlistSettings
 }; 

@@ -19,7 +19,7 @@ router.post('/wishlist/collections', [
   body('name').trim().notEmpty().withMessage('Collection name is required')
 ], userController.createCollection);
 
-router.get('/wishlist/settings', userController.getUserWishlist);
+router.get('/wishlist/settings', userController.getWishlistSettings);
 router.put('/wishlist/settings', userController.updateWishlistSettings);
 
 router.put('/wishlist/collections/:collectionId', userController.updateCollection);
