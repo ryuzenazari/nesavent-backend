@@ -59,8 +59,8 @@
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/username/nesavent.git
-cd nesavent
+git clone https://github.com/ryuzenazari/nesavent-backend
+cd nesavent-backend
 ```
 
 ### 2. Install Dependencies
