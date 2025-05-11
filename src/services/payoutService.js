@@ -47,33 +47,31 @@ const calculatePendingPayout = async (creatorId) => {
       }}
     ]);
     
-    const platformFeePercentage = 5;
-    const platformFeeFixed = 1000;
-    
+    // Kreator mendapatkan pendapatan utuh dari tiket
+    // Platform fee 3% dan biaya Midtrans sudah dibebankan ke pembeli
     const eventsData = transactionsData.map(event => {
-      const eventFee = (event.revenue * platformFeePercentage / 100) + platformFeeFixed;
       return {
         eventId: event.eventId,
         eventTitle: event.eventTitle,
         ticketsSold: event.ticketsSold,
         revenue: event.revenue,
-        platformFee: eventFee,
-        netAmount: event.revenue - eventFee
+        platformFee: 0, // Platform fee sudah dibebankan ke pembeli
+        netAmount: event.revenue // Kreator mendapatkan pendapatan utuh
       };
     });
     
     const totalRevenue = eventsData.reduce((sum, event) => sum + event.revenue, 0);
-    const totalFee = eventsData.reduce((sum, event) => sum + event.platformFee, 0);
-    const totalNetAmount = totalRevenue - totalFee;
+    const totalFee = 0; // Tidak ada biaya platform yang dibebankan ke kreator
+    const totalNetAmount = totalRevenue; // Kreator mendapatkan seluruh pendapatan
     
     return {
       creatorId,
       payoutEventsPeriod: { startDate, endDate },
       events: eventsData,
       platformFee: {
-        percentage: platformFeePercentage,
-        fixedAmount: platformFeeFixed,
-        total: totalFee
+        percentage: 0, // Platform fee sudah dibebankan ke pembeli
+        fixedAmount: 0, // Tidak ada biaya tetap
+        total: 0 // Total fee adalah 0 karena sudah dibebankan ke pembeli
       },
       amount: totalNetAmount,
       currency: 'IDR'

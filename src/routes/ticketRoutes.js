@@ -11,6 +11,7 @@ const { ticketValidation } = require('../middleware/validationMiddleware');
 
 // Public routes
 router.get('/tickets/types/:eventId', ticketValidation.getTypes, ticketController.getTicketTypesByEventId);
+router.get('/price-details/:ticketTypeId', ticketController.getPriceDetails);
 
 // Protected routes
 router.post('/tickets/purchase', authMiddleware.authenticateJWT, ticketController.purchaseTicket);

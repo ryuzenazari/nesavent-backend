@@ -16,6 +16,7 @@ const analyticsService = require('../services/analyticsService');
 const responseFormatter = require('../utils/responseFormatter');
 const TicketType = require('../models/TicketType');
 const PromoCode = require('../models/PromoCode');
+const ticketPricingService = require('../services/ticketPricingService');
 
 const purchaseTicket = async (req, res) => {
   const session = await mongoose.startSession();
@@ -274,11 +275,59 @@ const validatePromoCode = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Mendapatkan detail harga tiket dengan biaya tambahan
+ * @route   GET /api/tickets/price-details/:ticketTypeId
+ * @access  Public
+ */
+const getPriceDetails = async (req, res) => {
+  try {
+    const { ticketTypeId } = req.params;
+    const { paymentMethod } = req.query;
+    
+    // Validasi parameter paymentMethod
+    const validPaymentMethods = ['bank_transfer', 'credit_card', 'e_wallet', 'qris', 'retail'];
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      return responseFormatter.error(res, "Metode pembayaran tidak valid", null, 400);
+    }
+    
+    // Cari tipe tiket
+    const event = await Event.findOne({ "ticketTypes._id": ticketTypeId });
+    if (!event) {
+      return responseFormatter.notFound(res, "Tipe tiket tidak ditemukan");
+    }
+    
+    const ticketType = event.ticketTypes.id(ticketTypeId);
+    if (!ticketType) {
+      return responseFormatter.notFound(res, "Tipe tiket tidak ditemukan");
+    }
+    
+    // Hitung semua komponen biaya (harga dasar, biaya platform, biaya Midtrans)
+    const priceDetails = ticketPricingService.calculateBuyerPrice(ticketType.price, paymentMethod);
+    
+    return responseFormatter.success(res, "Detail harga tiket berhasil dibuat", { 
+      ticketType: {
+        _id: ticketType._id,
+        name: ticketType.name,
+        description: ticketType.description,
+        availableQuantity: ticketType.availableQuantity
+      },
+      priceDetails: priceDetails,
+      paymentMethodFees: ticketPricingService.getMidtransFeeDescription(),
+      platformFeePercentage: ticketPricingService.PLATFORM_FEE_PERCENTAGE
+    });
+  } catch (error) {
+    logger.error(`Error getting price details: ${error.message}`);
+    return responseFormatter.error(res, "Gagal mendapatkan detail harga", error.message);
+  }
+};
+
 module.exports = {
   purchaseTicket,
   getMyTickets,
   checkTicket,
   validateTicket,
   getTicketTypesByEventId,
-  validatePromoCode
+  validatePromoCode,
+  getPriceDetails
 };
