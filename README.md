@@ -202,14 +202,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 ## 🧪 Testing
 
-Project ini menggunakan Jest untuk unit testing dan Supertest untuk API testing.
+Project ini menggunakan Jest untuk unit testing.
 
 ```bash
 # Menjalankan semua test
 npm test
-
-# Menjalankan test API
-npm run test:api
 ```
 
 ## 🌐 Deployment
