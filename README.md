@@ -3,7 +3,7 @@
 NesaVent adalah platform penjualan tiket event untuk komunitas Universitas Negeri Surabaya (UNESA). Aplikasi ini dikembangkan dengan Express.js dan MongoDB, serta terintegrasi dengan Midtrans untuk sistem pembayaran.
 
 <p align="center">
-  <img src="https://via.placeholder.com/200x200" alt="NesaVent Logo" width="200" height="200">
+  <img src="https://freeimage.host/i/3vNeAAX" alt="NesaVent Logo" width="200" height="200">
 </p>
 
 ## 🌟 Fitur Utama
