@@ -43,10 +43,8 @@
     "redis": "^5.0.1",
     "sharp": "^0.34.1",
     "slugify": "^1.6.6",
-    "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0",
-    "yamljs": "^0.3.0"
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
