@@ -1,0 +1,1739 @@
+openapi: 3.0.0
+info:
+  title: NesaVent API
+  description: |
+    # API Documentation untuk Platform Ticketing Event Kampus UNESA
+    
+    NesaVent adalah platform penjualan tiket event untuk komunitas Universitas Negeri Surabaya (UNESA).
+    Dokumentasi ini mencakup semua endpoint API yang tersedia di platform NesaVent.
+    
+    ## Autentikasi
+    Sebagian besar endpoint memerlukan autentikasi menggunakan JWT Bearer token.
+    Token dapat diperoleh melalui endpoint `/auth/login` atau `/auth/google`.
+    
+    ## Pagination
+    Endpoint yang mengembalikan daftar item umumnya mendukung pagination dengan parameter query:
+    - `page`: Nomor halaman (default: 1)
+    - `limit`: Jumlah item per halaman (default: 10)
+    
+    ## Format Response
+    Semua response menggunakan format JSON dengan struktur umum:
+    ```json
+    {
+      "success": true,
+      "data": { ... },
+      "message": "Success message"
+    }
+    ```
+    
+    Untuk error response:
+    ```json
+    {
+      "success": false,
+      "error": "Error message",
+      "code": 400
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: Tim Pengembang NesaVent
+    email: support@nesavent.com
+
+servers:
+  - url: http://localhost:5000/api
+    description: Development Server
+  - url: https://api.nesavent.com/api
+    description: Production Server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Authorization header using the Bearer scheme
+    googleAuth:
+      type: oauth2
+      description: Google OAuth2 authentication
+      flows:
+        authorizationCode:
+          authorizationUrl: https://accounts.google.com/o/oauth2/auth
+          tokenUrl: https://oauth2.googleapis.com/token
+          scopes:
+            email: Akses email pengguna
+            profile: Akses profil pengguna
+
+  schemas:
+    User:
+      type: object
+      description: Representasi data pengguna
+      properties:
+        _id:
+          type: string
+          format: uuid
+          description: ID unik pengguna
+        name:
+          type: string
+          description: Nama lengkap pengguna
+        email:
+          type: string
+          format: email
+          description: Alamat email pengguna
+        role:
+          type: string
+          enum: [user, student, creator, staff, admin]
+          description: Peran pengguna dalam sistem
+        isVerified:
+          type: boolean
+          description: Status verifikasi email pengguna
+        studentId:
+          type: string
+          description: Nomor induk mahasiswa (jika role student)
+        createdAt:
+          type: string
+          format: date-time
+          description: Waktu pembuatan akun
+
+    Event:
+      type: object
+      description: Representasi data event
+      properties:
+        _id:
+          type: string
+          format: uuid
+          description: ID unik event
+        title:
+          type: string
+          description: Judul event
+        description:
+          type: string
+          description: Deskripsi lengkap event
+        startDate:
+          type: string
+          format: date-time
+          description: Waktu mulai event
+        endDate:
+          type: string
+          format: date-time
+          description: Waktu berakhir event
+        location:
+          type: string
+          description: Lokasi event
+        creator:
+          type: string
+          format: uuid
+          description: ID pembuat event
+        ticketTypes:
+          type: array
+          description: Tipe tiket yang tersedia
+          items:
+            $ref: '#/components/schemas/TicketType'
+        status:
+          type: string
+          enum: [draft, published, cancelled, completed]
+          description: Status event
+
+    TicketType:
+      type: object
+      description: Representasi tipe tiket
+      properties:
+        name:
+          type: string
+          description: Nama tipe tiket
+        price:
+          type: number
+          description: Harga tiket
+        quantity:
+          type: integer
+          description: Jumlah tiket yang tersedia
+        isStudentOnly:
+          type: boolean
+          description: Apakah tiket hanya untuk mahasiswa
+        description:
+          type: string
+          description: Deskripsi tipe tiket
+
+    Transaction:
+      type: object
+      description: Representasi transaksi pembelian tiket
+      properties:
+        _id:
+          type: string
+          format: uuid
+          description: ID unik transaksi
+        eventId:
+          type: string
+          format: uuid
+          description: ID event terkait
+        userId:
+          type: string
+          format: uuid
+          description: ID pembeli
+        ticketTypeId:
+          type: string
+          format: uuid
+          description: ID tipe tiket
+        quantity:
+          type: integer
+          description: Jumlah tiket yang dibeli
+        totalAmount:
+          type: number
+          description: Total harga transaksi
+        status:
+          type: string
+          enum: [pending, paid, cancelled, expired]
+          description: Status transaksi
+        paymentUrl:
+          type: string
+          description: URL untuk melakukan pembayaran
+        createdAt:
+          type: string
+          format: date-time
+          description: Waktu pembuatan transaksi
+
+    PromoCode:
+      type: object
+      description: Representasi kode promo
+      properties:
+        code:
+          type: string
+          description: Kode promo yang dapat digunakan
+        discount:
+          type: number
+          description: Nilai diskon
+        discountType:
+          type: string
+          enum: [percentage, fixed]
+          description: Tipe diskon (persentase atau nilai tetap)
+        maxUsage:
+          type: integer
+          description: Jumlah maksimum penggunaan
+        startDate:
+          type: string
+          format: date-time
+          description: Waktu mulai berlaku
+        endDate:
+          type: string
+          format: date-time
+          description: Waktu berakhir
+        applicableTickets:
+          type: array
+          description: Tipe tiket yang dapat menggunakan promo ini
+          items:
+            type: string
+
+    Rating:
+      type: object
+      description: Representasi rating dan ulasan
+      properties:
+        rating:
+          type: number
+          minimum: 1
+          maximum: 5
+          description: Nilai rating (1-5)
+        review:
+          type: string
+          description: Teks ulasan
+        user:
+          $ref: '#/components/schemas/User'
+          description: Pengguna yang memberikan rating
+        createdAt:
+          type: string
+          format: date-time
+          description: Waktu pemberian rating
+
+    Payout:
+      type: object
+      description: Representasi payout untuk creator
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID unik payout
+        creatorId:
+          type: string
+          format: uuid
+          description: ID creator
+        amount:
+          type: number
+          description: Jumlah payout
+        bankAccount:
+          type: string
+          description: Informasi rekening bank
+        status:
+          type: string
+          enum: [pending, processed, rejected]
+          description: Status payout
+        createdAt:
+          type: string
+          format: date-time
+          description: Waktu permintaan payout
+        processedAt:
+          type: string
+          format: date-time
+          description: Waktu pemrosesan payout
+
+paths:
+  # AUTHENTICATION ENDPOINTS
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register user baru
+      description: Mendaftarkan pengguna baru ke sistem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                  example: "John Doe"
+                email:
+                  type: string
+                  format: email
+                  example: "john@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "password123"
+      responses:
+        '201':
+          description: User berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Data tidak valid
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      description: Mendapatkan token autentikasi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "john@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "password123"
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Kredensial tidak valid
+
+  /auth/google:
+    get:
+      tags:
+        - Authentication
+      summary: Login dengan Google
+      description: Memulai proses autentikasi dengan Google OAuth
+      security:
+        - googleAuth: []
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/google/callback:
+    get:
+      tags:
+        - Authentication
+      summary: Callback untuk login Google
+      description: Endpoint yang dipanggil oleh Google setelah autentikasi berhasil
+      security:
+        - googleAuth: []
+      responses:
+        '302':
+          description: Redirect ke frontend dengan token
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL redirect dengan token
+
+  /auth/verify-email/{token}:
+    get:
+      tags:
+        - Authentication
+      summary: Verifikasi email user
+      description: Memverifikasi alamat email pengguna dengan token yang dikirim via email
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+          description: Token verifikasi email
+          example: "abc123def456"
+      responses:
+        '200':
+          description: Email berhasil diverifikasi
+        '400':
+          description: Token tidak valid
+
+  /auth/resend-verification:
+    post:
+      tags:
+        - Authentication
+      summary: Mengirim ulang email verifikasi
+      description: Mengirim ulang email verifikasi ke alamat email pengguna
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "john@example.com"
+      responses:
+        '200':
+          description: Email verifikasi berhasil dikirim ulang
+        '400':
+          description: Email tidak ditemukan
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Meminta reset password
+      description: Mengirim email dengan link reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "john@example.com"
+      responses:
+        '200':
+          description: Email reset password berhasil dikirim
+        '400':
+          description: Email tidak ditemukan
+
+  /auth/reset-password/{token}:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password dengan token
+      description: Mengubah password dengan token yang dikirim via email
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+          description: Token reset password
+          example: "abc123def456"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  format: password
+                  example: "newPassword123"
+      responses:
+        '200':
+          description: Password berhasil direset
+        '400':
+          description: Token tidak valid
+
+  # USER PROFILE ENDPOINTS
+  /auth/profile:
+    get:
+      tags:
+        - Users
+      summary: Mendapatkan profil user
+      description: Mendapatkan informasi profil user yang sedang login
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profil user berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Tidak terautentikasi
+    
+    put:
+      tags:
+        - Users
+      summary: Update profil user
+      description: Mengupdate informasi profil user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "John Smith"
+                phone:
+                  type: string
+                  example: "081234567890"
+                bio:
+                  type: string
+                  example: "Mahasiswa Teknik Informatika"
+      responses:
+        '200':
+          description: Profil berhasil diupdate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Tidak terautentikasi
+
+  # EVENT ENDPOINTS
+  /events:
+    get:
+      tags:
+        - Events
+      summary: Mendapatkan daftar event
+      description: Mendapatkan daftar event dengan filter dan pagination
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            example: 1
+          description: Nomor halaman
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            example: 10
+          description: Jumlah item per halaman
+        - in: query
+          name: search
+          schema:
+            type: string
+            example: "konser"
+          description: Kata kunci pencarian
+      responses:
+        '200':
+          description: Daftar event berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  total:
+                    type: integer
+                    example: 50
+                  page:
+                    type: integer
+                    example: 1
+                  totalPages:
+                    type: integer
+                    example: 5
+
+    post:
+      tags:
+        - Events
+      summary: Membuat event baru
+      description: Membuat event baru (hanya untuk creator)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+      responses:
+        '201':
+          description: Event berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '401':
+          description: Tidak terautentikasi
+        '403':
+          description: Tidak memiliki akses
+
+  /events/{eventId}:
+    get:
+      tags:
+        - Events
+      summary: Mendapatkan detail event
+      description: Mendapatkan informasi lengkap tentang event tertentu
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: string
+          description: ID event
+          example: "60d21b4667d0d8992e610c85"
+      responses:
+        '200':
+          description: Detail event berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: Event tidak ditemukan
+
+  /events/search:
+    get:
+      tags:
+        - Events
+      summary: Mencari event
+      description: Mencari event berdasarkan berbagai kriteria
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+            example: "seminar teknologi"
+          description: Kata kunci pencarian
+        - in: query
+          name: category
+          schema:
+            type: string
+            example: "seminar"
+          description: Filter berdasarkan kategori
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+            example: "2023-08-01"
+          description: Filter event mulai dari tanggal
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+            example: "2023-08-31"
+          description: Filter event sampai tanggal
+      responses:
+        '200':
+          description: Hasil pencarian event
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  total:
+                    type: integer
+                    example: 15
+
+  # TICKET ENDPOINTS
+  /transactions:
+    post:
+      tags:
+        - Transactions
+      summary: Membuat transaksi baru
+      description: Membuat transaksi pembelian tiket baru
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventId
+                - ticketTypeId
+                - quantity
+              properties:
+                eventId:
+                  type: string
+                  format: uuid
+                  example: "60d21b4667d0d8992e610c85"
+                ticketTypeId:
+                  type: string
+                  format: uuid
+                  example: "60d21b4667d0d8992e610c86"
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 2
+      responses:
+        '201':
+          description: Transaksi berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Data tidak valid
+        '401':
+          description: Tidak terautentikasi
+
+  /transactions/{transactionId}/status:
+    get:
+      tags:
+        - Transactions
+      summary: Mengecek status transaksi
+      description: Mendapatkan status terkini dari transaksi
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: transactionId
+          required: true
+          schema:
+            type: string
+          description: ID transaksi
+          example: "60d21b4667d0d8992e610c87"
+      responses:
+        '200':
+          description: Status transaksi berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [pending, paid, cancelled, expired]
+                    example: "paid"
+                  paymentUrl:
+                    type: string
+                    example: "https://app.midtrans.com/snap/v2/vtweb/abc123"
+        '404':
+          description: Transaksi tidak ditemukan
+
+  # NOTIFICATION ENDPOINTS
+  /notifications/midtrans:
+    post:
+      tags:
+        - Notifications
+      summary: Webhook untuk notifikasi Midtrans
+      description: Endpoint yang dipanggil oleh Midtrans untuk memberikan update status pembayaran
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction_status:
+                  type: string
+                  example: "settlement"
+                order_id:
+                  type: string
+                  example: "ORDER-123"
+                payment_type:
+                  type: string
+                  example: "credit_card"
+                gross_amount:
+                  type: string
+                  example: "200000.00"
+      responses:
+        '200':
+          description: Notifikasi berhasil diproses
+        '400':
+          description: Data tidak valid
+
+  # USER MANAGEMENT ENDPOINTS
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Mendapatkan profil user yang sedang login
+      description: Mendapatkan informasi lengkap tentang user yang sedang login
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profil user berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Tidak terautentikasi
+
+  /users/verify-student:
+    post:
+      tags:
+        - Users
+      summary: Verifikasi status mahasiswa
+      description: Mengirimkan dokumen KTM untuk verifikasi status mahasiswa
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - studentId
+                - ktmImage
+              properties:
+                studentId:
+                  type: string
+                  example: "1234567890"
+                ktmImage:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Verifikasi berhasil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Data tidak valid
+        '401':
+          description: Tidak terautentikasi
+
+  # WISHLIST ENDPOINTS
+  /users/wishlist:
+    get:
+      tags:
+        - Users
+      summary: Mendapatkan wishlist user
+      description: Mendapatkan daftar event yang disimpan dalam wishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wishlist berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+        '401':
+          description: Tidak terautentikasi
+    
+    post:
+      tags:
+        - Users
+      summary: Menambahkan event ke wishlist
+      description: Menyimpan event ke dalam wishlist user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventId
+              properties:
+                eventId:
+                  type: string
+                  example: "60d21b4667d0d8992e610c85"
+                collectionId:
+                  type: string
+                  example: "60d21b4667d0d8992e610c88"
+      responses:
+        '201':
+          description: Event berhasil ditambahkan ke wishlist
+        '400':
+          description: Data tidak valid
+        '401':
+          description: Tidak terautentikasi
+        '404':
+          description: Event tidak ditemukan
+
+  # RECOMMENDATION ENDPOINTS
+  /users/recommendations:
+    get:
+      tags:
+        - Users
+      summary: Mendapatkan rekomendasi event
+      description: Mendapatkan rekomendasi event berdasarkan preferensi user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Rekomendasi event berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+        '401':
+          description: Tidak terautentikasi
+
+  # REWARDS ENDPOINTS
+  /users/rewards/points:
+    get:
+      tags:
+        - Rewards
+      summary: Mendapatkan poin user
+      description: Mendapatkan informasi poin dan level user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Poin user berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: integer
+                    example: 250
+                  level:
+                    type: integer
+                    example: 2
+                  nextLevel:
+                    type: integer
+                    example: 3
+                  pointsToNextLevel:
+                    type: integer
+                    example: 50
+        '401':
+          description: Tidak terautentikasi
+
+  # NOTIFICATION ENDPOINTS
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Mendapatkan notifikasi user
+      description: Mendapatkan daftar notifikasi untuk user yang sedang login
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notifikasi berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                      example: "60d21b4667d0d8992e610c89"
+                    title:
+                      type: string
+                      example: "Tiket Berhasil Dibeli"
+                    message:
+                      type: string
+                      example: "Pembelian tiket untuk event Seminar Teknologi berhasil"
+                    type:
+                      type: string
+                      example: "transaction"
+                    isRead:
+                      type: boolean
+                      example: false
+                    createdAt:
+                      type: string
+                      format: date-time
+                      example: "2023-08-01T10:30:00Z"
+        '401':
+          description: Tidak terautentikasi
+
+  # ADMIN ENDPOINTS
+  /admin/dashboard:
+    get:
+      tags:
+        - Admin
+      summary: Mendapatkan statistik dashboard admin
+      description: Mendapatkan ringkasan statistik untuk dashboard admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistik dashboard berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 1250
+                      new:
+                        type: integer
+                        example: 45
+                      verified:
+                        type: integer
+                        example: 980
+                  events:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 78
+                      pending:
+                        type: integer
+                        example: 12
+                      active:
+                        type: integer
+                        example: 45
+                  transactions:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 350
+                      revenue:
+                        type: number
+                        example: 15000000
+                      pending:
+                        type: integer
+                        example: 25
+                  reports:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 15
+                      unresolved:
+                        type: integer
+                        example: 5
+        '401':
+          description: Tidak terautentikasi
+        '403':
+          description: Tidak memiliki akses
+
+  # ANALYTICS ENDPOINTS
+  /analytics/events/{eventId}:
+    get:
+      tags:
+        - Analytics
+      summary: Mendapatkan analitik event
+      description: Mendapatkan data analitik untuk event tertentu
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: string
+          description: ID event
+          example: "60d21b4667d0d8992e610c85"
+      responses:
+        '200':
+          description: Analitik event berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  views:
+                    type: integer
+                    example: 1200
+                  ticketsSold:
+                    type: integer
+                    example: 85
+                  revenue:
+                    type: number
+                    example: 4250000
+                  conversionRate:
+                    type: number
+                    example: 7.08
+        '401':
+          description: Tidak terautentikasi
+        '403':
+          description: Tidak memiliki akses
+        '404':
+          description: Event tidak ditemukan
+
+  # REPORT ENDPOINTS
+  /abuse-reports:
+    post:
+      tags:
+        - Reports
+      summary: Membuat laporan penyalahgunaan
+      description: Melaporkan konten yang melanggar ketentuan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - targetId
+                - reason
+              properties:
+                type:
+                  type: string
+                  enum: [event, user, comment]
+                  example: "event"
+                targetId:
+                  type: string
+                  example: "60d21b4667d0d8992e610c85"
+                reason:
+                  type: string
+                  example: "Konten tidak sesuai"
+                details:
+                  type: string
+                  example: "Event ini mengandung konten yang tidak pantas"
+      responses:
+        '201':
+          description: Laporan berhasil dibuat
+        '400':
+          description: Data tidak valid
+        '401':
+          description: Tidak terautentikasi
+        '404':
+          description: Target tidak ditemukan
+
+  /abuse-reports/my-reports:
+    get:
+      tags:
+        - Reports
+      summary: Mendapatkan laporan penyalahgunaan yang dibuat user
+      description: Melihat daftar laporan yang telah dibuat oleh user yang sedang login
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daftar laporan berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id:
+                      type: string
+                      example: "60d21b4667d0d8992e610c90"
+                    type:
+                      type: string
+                      enum: [event, user, comment]
+                      example: "event"
+                    targetId:
+                      type: string
+                      example: "60d21b4667d0d8992e610c85"
+                    reason:
+                      type: string
+                      example: "Konten tidak sesuai"
+                    status:
+                      type: string
+                      enum: [pending, resolved, rejected]
+                      example: "pending"
+                    createdAt:
+                      type: string
+                      format: date-time
+                      example: "2023-08-15T14:30:00Z"
+        '401':
+          description: Tidak terautentikasi
+
+  /abuse-reports/{reportId}:
+    get:
+      tags:
+        - Reports
+      summary: Mendapatkan detail laporan penyalahgunaan
+      description: Melihat detail lengkap dari sebuah laporan
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: reportId
+          required: true
+          schema:
+            type: string
+          description: ID laporan
+          example: "60d21b4667d0d8992e610c90"
+      responses:
+        '200':
+          description: Detail laporan berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                    example: "60d21b4667d0d8992e610c90"
+                  type:
+                    type: string
+                    enum: [event, user, comment]
+                    example: "event"
+                  targetId:
+                    type: string
+                    example: "60d21b4667d0d8992e610c85"
+                  reason:
+                    type: string
+                    example: "Konten tidak sesuai"
+                  details:
+                    type: string
+                    example: "Event ini mengandung konten yang tidak pantas"
+                  status:
+                    type: string
+                    enum: [pending, resolved, rejected]
+                    example: "pending"
+                  createdAt:
+                    type: string
+                    format: date-time
+                    example: "2023-08-15T14:30:00Z"
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    example: "2023-08-15T14:30:00Z"
+                  adminComment:
+                    type: string
+                    example: "Laporan sedang ditinjau"
+        '401':
+          description: Tidak terautentikasi
+        '403':
+          description: Tidak memiliki akses
+        '404':
+          description: Laporan tidak ditemukan
+
+  # SOCIAL FEATURES ENDPOINTS
+  /social/comments/event/{eventId}:
+    get:
+      tags:
+        - Social
+      summary: Mendapatkan komentar untuk event
+      description: Mendapatkan daftar komentar untuk event tertentu
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: string
+          description: ID event
+          example: "60d21b4667d0d8992e610c85"
+        - in: query
+          name: page
+          schema:
+            type: integer
+            example: 1
+          description: Nomor halaman
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            example: 10
+          description: Jumlah item per halaman
+      responses:
+        '200':
+          description: Daftar komentar berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        _id:
+                          type: string
+                          example: "60d21b4667d0d8992e610c91"
+                        user:
+                          $ref: '#/components/schemas/User'
+                        content:
+                          type: string
+                          example: "Event yang sangat menarik!"
+                        createdAt:
+                          type: string
+                          format: date-time
+                          example: "2023-08-15T14:30:00Z"
+                  total:
+                    type: integer
+                    example: 25
+                  page:
+                    type: integer
+                    example: 1
+                  totalPages:
+                    type: integer
+                    example: 3
+        '404':
+          description: Event tidak ditemukan
+
+    post:
+      tags:
+        - Social
+      summary: Menambahkan komentar pada event
+      description: Menambahkan komentar baru pada event tertentu
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: string
+          description: ID event
+          example: "60d21b4667d0d8992e610c85"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  example: "Event yang sangat menarik!"
+                parentId:
+                  type: string
+                  example: "60d21b4667d0d8992e610c91"
+                  description: ID komentar induk (untuk balasan)
+      responses:
+        '201':
+          description: Komentar berhasil ditambahkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  _id:
+                    type: string
+                    example: "60d21b4667d0d8992e610c92"
+                  user:
+                    $ref: '#/components/schemas/User'
+                  content:
+                    type: string
+                    example: "Event yang sangat menarik!"
+                  createdAt:
+                    type: string
+                    format: date-time
+                    example: "2023-08-15T14:30:00Z"
+        '400':
+          description: Data tidak valid
+        '401':
+          description: Tidak terautentikasi
+        '404':
+          description: Event tidak ditemukan
+
+  # CREATOR DASHBOARD ENDPOINTS
+  /creator/dashboard:
+    get:
+      tags:
+        - Creator
+      summary: Mendapatkan statistik dashboard creator
+      description: Mendapatkan ringkasan statistik untuk dashboard creator
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistik dashboard berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 15
+                      active:
+                        type: integer
+                        example: 8
+                      draft:
+                        type: integer
+                        example: 3
+                      completed:
+                        type: integer
+                        example: 4
+                  sales:
+                    type: object
+                    properties:
+                      total:
+                        type: number
+                        example: 7500000
+                      thisMonth:
+                        type: number
+                        example: 1200000
+                      pendingPayout:
+                        type: number
+                        example: 950000
+                  topEvents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        _id:
+                          type: string
+                          example: "60d21b4667d0d8992e610c85"
+                        title:
+                          type: string
+                          example: "Seminar Teknologi"
+                        ticketsSold:
+                          type: integer
+                          example: 85
+                        revenue:
+                          type: number
+                          example: 4250000
+        '401':
+          description: Tidak terautentikasi
+        '403':
+          description: Tidak memiliki akses
+
+  /creator/payouts:
+    get:
+      tags:
+        - Creator
+      summary: Mendapatkan riwayat payout
+      description: Mendapatkan riwayat payout untuk creator
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Riwayat payout berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payout'
+        '401':
+          description: Tidak terautentikasi
+        '403':
+          description: Tidak memiliki akses
+
+    post:
+      tags:
+        - Creator
+      summary: Meminta payout
+      description: Membuat permintaan payout baru
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - bankAccount
+              properties:
+                amount:
+                  type: number
+                  example: 950000
+                bankAccount:
+                  type: object
+                  properties:
+                    bankName:
+                      type: string
+                      example: "BCA"
+                    accountName:
+                      type: string
+                      example: "John Doe"
+                    accountNumber:
+                      type: string
+                      example: "1234567890"
+      responses:
+        '201':
+          description: Permintaan payout berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payout'
+        '400':
+          description: Data tidak valid
+        '401':
+          description: Tidak terautentikasi
+        '403':
+          description: Tidak memiliki akses
+
+  # MOBILE APP SPECIFIC ENDPOINTS
+  /mobile/config:
+    get:
+      tags:
+        - Mobile
+      summary: Mendapatkan konfigurasi aplikasi mobile
+      description: Mendapatkan pengaturan dan konfigurasi untuk aplikasi mobile
+      responses:
+        '200':
+          description: Konfigurasi berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                    example: "1.2.0"
+                  forceUpdate:
+                    type: boolean
+                    example: false
+                  maintenanceMode:
+                    type: boolean
+                    example: false
+                  features:
+                    type: object
+                    properties:
+                      socialLogin:
+                        type: boolean
+                        example: true
+                      rewards:
+                        type: boolean
+                        example: true
+                      recommendations:
+                        type: boolean
+                        example: true
+  
+  /mobile/events/featured:
+    get:
+      tags:
+        - Mobile
+      summary: Mendapatkan event unggulan untuk aplikasi mobile
+      description: Mendapatkan daftar event yang direkomendasikan untuk ditampilkan di halaman utama aplikasi mobile
+      responses:
+        '200':
+          description: Daftar event unggulan berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+
+  /mobile/ticket-validation/{ticketId}:
+    get:
+      tags:
+        - Mobile
+      summary: Memvalidasi tiket melalui QR Code
+      description: Memvalidasi tiket yang dipindai melalui QR Code di aplikasi mobile
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+          description: ID tiket
+          example: "60d21b4667d0d8992e610c99"
+      responses:
+        '200':
+          description: Tiket berhasil divalidasi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Tiket valid"
+                  ticket:
+                    type: object
+                    properties:
+                      eventName:
+                        type: string
+                        example: "Seminar Teknologi"
+                      userName:
+                        type: string
+                        example: "John Doe"
+                      ticketType:
+                        type: string
+                        example: "VIP"
+                      status:
+                        type: string
+                        example: "used"
+        '400':
+          description: Tiket tidak valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Tiket sudah digunakan"
+        '401':
+          description: Tidak terautentikasi
+        '404':
+          description: Tiket tidak ditemukan
+
+  /mobile/offline-data:
+    get:
+      tags:
+        - Mobile
+      summary: Mendapatkan data untuk mode offline
+      description: Mendapatkan data yang diperlukan untuk mode offline di aplikasi mobile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Data offline berhasil didapatkan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userTickets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        _id:
+                          type: string
+                          example: "60d21b4667d0d8992e610c99"
+                        eventId:
+                          type: string
+                          example: "60d21b4667d0d8992e610c85"
+                        eventName:
+                          type: string
+                          example: "Seminar Teknologi"
+                        ticketType:
+                          type: string
+                          example: "VIP"
+                        qrCode:
+                          type: string
+                          example: "data:image/png;base64,..."
+                  upcomingEvents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+        '401':
+          description: Tidak terautentikasi
+
+  # MONITORING ENDPOINTS
+  /monitoring/health:
+    get:
+      tags:
+        - Monitoring
+      summary: Memeriksa status kesehatan sistem
+      description: Mendapatkan informasi status kesehatan API dan database
+      responses:
+        '200':
+          description: Status kesehatan sistem
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: "NesaVent API"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2023-08-15T14:30:00Z"
+                  uptime:
+                    type: number
+                    example: 3600
+                  status:
+                    type: string
+                    enum: [OK, WARNING, ERROR]
+                    example: "OK"
+                  database:
+                    type: string
+                    enum: [OK, ERROR]
+                    example: "OK"
+        '500':
+          description: Terjadi kesalahan pada server
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: "NesaVent API"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2023-08-15T14:30:00Z"
+                  status:
+                    type: string
+                    example: "ERROR"
+                  error:
+                    type: string
+                    example: "Database connection failed" 
