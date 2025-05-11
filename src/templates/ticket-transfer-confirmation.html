@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konfirmasi Transfer Tiket NesaVent</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #4CAF50;
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .success-message {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4CAF50;
+            text-align: center;
+        }
+        .success-icon {
+            font-size: 48px;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        .ticket-details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{appName}}</h1>
+        </div>
+        
+        <div class="content">
+            <div class="success-message">
+                <div class="success-icon">✓</div>
+                <h2>Transfer Tiket Berhasil</h2>
+            </div>
+            
+            <p>Halo {{name}},</p>
+            <p>Tiket Anda untuk event <strong>{{eventTitle}}</strong> telah berhasil ditransfer ke:</p>
+            
+            <div class="ticket-details">
+                <p><strong>Nama:</strong> {{recipientName}}</p>
+                <p><strong>Email:</strong> {{recipientEmail}}</p>
+            </div>
+            
+            <p>Detail tiket yang ditransfer:</p>
+            <div class="ticket-details">
+                <p><strong>Event:</strong> {{eventTitle}}</p>
+                <p><strong>Tanggal:</strong> {{eventDate}}</p>
+                <p><strong>Waktu:</strong> {{eventTime}}</p>
+                <p><strong>Tipe Tiket:</strong> {{ticketType}}</p>
+            </div>
+            
+            <p>Tiket ini sekarang telah diassign ke penerima baru dan tidak lagi valid untuk Anda.</p>
+            <p>Jika Anda merasa ini adalah kesalahan, silakan hubungi tim support kami segera.</p>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; {{year}} {{appName}}. Semua hak dilindungi.</p>
+            <p>Email ini dikirim secara otomatis, mohon jangan membalas.</p>
+        </div>
+    </div>
+</body>
+</html> 

@@ -16,7 +16,7 @@ const eventService = require('../services/eventService');
 const paymentService = require('../services/paymentService');
 const ticketService = require('../services/ticketService');
 
-exports.verifyUser = async (req, res) => {
+const verifyUser = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -59,7 +59,8 @@ exports.verifyUser = async (req, res) => {
     });
   }
 };
-exports.deleteUser = async (req, res) => {
+
+const deleteUser = async (req, res) => {
   try {
     const userId = req.params.id;
     const user = await User.findById(userId);
@@ -103,7 +104,8 @@ exports.deleteUser = async (req, res) => {
     });
   }
 };
-exports.getAllUsers = async (req, res) => {
+
+const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({}, '-password -verificationToken -resetPasswordToken').sort({
       createdAt: -1
@@ -122,7 +124,8 @@ exports.getAllUsers = async (req, res) => {
     });
   }
 };
-exports.getUserById = async (req, res) => {
+
+const getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
     const user = await User.findById(userId, '-password -verificationToken -resetPasswordToken');
@@ -162,7 +165,8 @@ exports.getUserById = async (req, res) => {
     });
   }
 };
-exports.getCreatorVerifications = async (req, res) => {
+
+const getCreatorVerifications = async (req, res) => {
   try {
     const status = req.query.status || 'pending';
 
@@ -187,7 +191,8 @@ exports.getCreatorVerifications = async (req, res) => {
     });
   }
 };
-exports.getCreatorVerificationById = async (req, res) => {
+
+const getCreatorVerificationById = async (req, res) => {
   try {
     const verificationId = req.params.id;
     const verification = await CreatorVerification.findById(verificationId).populate(
@@ -213,7 +218,8 @@ exports.getCreatorVerificationById = async (req, res) => {
     });
   }
 };
-exports.approveCreatorVerification = async (req, res) => {
+
+const approveCreatorVerification = async (req, res) => {
   try {
     const verificationId = req.params.id;
     const { adminNotes } = req.body;
@@ -262,7 +268,8 @@ exports.approveCreatorVerification = async (req, res) => {
     });
   }
 };
-exports.rejectCreatorVerification = async (req, res) => {
+
+const rejectCreatorVerification = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -641,6 +648,120 @@ const deleteReport = async (req, res) => {
   }
 };
 
+const toggleUserStatus = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
+    }
+    user.isActive = !user.isActive;
+    await user.save();
+    res.status(200).json({ success: true, isActive: user.isActive, message: 'Status user berhasil diubah' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat mengubah status user', error: error.message });
+  }
+};
+
+const getAllEvents = async (req, res) => {
+  try {
+    const events = await Event.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, count: events.length, events });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat mengambil daftar event', error: error.message });
+  }
+};
+
+const getEventById = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event tidak ditemukan' });
+    }
+    res.status(200).json({ success: true, event });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat mengambil detail event', error: error.message });
+  }
+};
+
+const updateEventStatus = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event tidak ditemukan' });
+    }
+    event.status = req.body.status;
+    await event.save();
+    res.status(200).json({ success: true, status: event.status, message: 'Status event berhasil diubah' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat mengubah status event', error: error.message });
+  }
+};
+
+const deleteEvent = async (req, res) => {
+  try {
+    const event = await Event.findByIdAndDelete(req.params.eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event tidak ditemukan' });
+    }
+    res.status(200).json({ success: true, message: 'Event berhasil dihapus' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat menghapus event', error: error.message });
+  }
+};
+
+const getPendingVerifications = async (req, res) => {
+  try {
+    const verifications = await CreatorVerification.find({ status: 'pending' })
+      .populate('user', 'name email role profileImage')
+      .sort({ createdAt: -1 });
+    res.status(200).json({ success: true, count: verifications.length, verifications });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat mengambil daftar verifikasi', error: error.message });
+  }
+};
+
+const approveVerification = async (req, res) => {
+  try {
+    const verification = await CreatorVerification.findById(req.params.verificationId).populate('user');
+    if (!verification) {
+      return res.status(404).json({ success: false, message: 'Verifikasi tidak ditemukan' });
+    }
+    if (verification.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Verifikasi sudah ${verification.status}` });
+    }
+    verification.status = 'approved';
+    verification.reviewedBy = req.user._id;
+    verification.reviewedAt = new Date();
+    await verification.save();
+    verification.user.role = 'creator';
+    await verification.user.save();
+    res.status(200).json({ success: true, message: 'Verifikasi berhasil disetujui', verification });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat menyetujui verifikasi', error: error.message });
+  }
+};
+
+const rejectVerification = async (req, res) => {
+  try {
+    const verification = await CreatorVerification.findById(req.params.verificationId).populate('user');
+    if (!verification) {
+      return res.status(404).json({ success: false, message: 'Verifikasi tidak ditemukan' });
+    }
+    if (verification.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Verifikasi sudah ${verification.status}` });
+    }
+    verification.status = 'rejected';
+    verification.rejectionReason = req.body.reason;
+    verification.reviewedBy = req.user._id;
+    verification.reviewedAt = new Date();
+    await verification.save();
+    res.status(200).json({ success: true, message: 'Verifikasi berhasil ditolak', verification });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan saat menolak verifikasi', error: error.message });
+  }
+};
+
 module.exports = {
   // Dashboard
   getDashboardStats,
@@ -669,5 +790,22 @@ module.exports = {
   getReports,
   getReportById,
   publishReport,
-  deleteReport
+  deleteReport,
+  
+  // User Management
+  getAllUsers,
+  getUserById,
+  toggleUserStatus,
+  deleteUser,
+  
+  // Event Management
+  getAllEvents,
+  getEventById,
+  updateEventStatus,
+  deleteEvent,
+  
+  // Verification
+  getPendingVerifications,
+  approveVerification,
+  rejectVerification
 };

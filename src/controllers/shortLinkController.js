@@ -312,6 +312,36 @@ const getShortLinkStats = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Mendapatkan semua shortlink yang dibuat oleh user
+ * @route   GET /api/shortlinks/my-links
+ * @access  Private
+ */
+const getMyShortLinks = async (req, res) => {
+  try {
+    const creatorId = req.user.id;
+    const shortLinks = await ShortLink.find({ createdBy: creatorId })
+      .populate('targetId')
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      shortLinks
+    });
+  } catch (error) {
+    logger.error('Error saat mengambil shortlinks', {
+      error: error.message,
+      userId: req.user.id
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Gagal mengambil shortlinks',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   redirectShortLink,
   getShortLinkInfo,
@@ -319,5 +349,6 @@ module.exports = {
   getUserShortLinks,
   updateShortLink,
   deleteShortLink,
-  getShortLinkStats
+  getShortLinkStats,
+  getMyShortLinks
 };

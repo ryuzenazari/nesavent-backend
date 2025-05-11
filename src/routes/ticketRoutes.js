@@ -1,1 +1,41 @@
-const express = require('express');const { body } = require('express-validator');const ticketController = require('../controllers/ticketController');const { authenticate, checkRole } = require('../middleware/auth');const { generalLimiter, authLimiter } = require('../middleware/rateLimiter');const ticketValidationController = require('../controllers/ticketValidationController');const router = express.Router();const isValidatorRole = checkRole('creator', 'staff_creator', 'admin');router.post(  '/',  authenticate,  generalLimiter,  [    body('eventId').notEmpty().withMessage('Event ID wajib diisi'),    body('ticketType')      .optional()      .custom((value, { req }) => {        if (!req.body.ticketTypeId && !value) {          throw new Error('Tipe tiket wajib diisi jika tidak menggunakan ID tipe tiket');        }        if (value && !['regular', 'student'].includes(value)) {          throw new Error('Tipe tiket tidak valid');        }        return true;      }),    body('ticketTypeId').optional().isMongoId().withMessage('ID tipe tiket tidak valid'),    body('quantity')      .isInt({        min: 1,        max: 10      })      .withMessage('Jumlah tiket harus antara 1-10')  ],  ticketController.purchaseTicket);router.get('/', authenticate, ticketController.getUserTickets);router.get('/:id', authenticate, ticketController.getTicketById);router.put('/:id/cancel', authenticate, ticketController.cancelTicket);router.post(  '/:id/transfer',  authenticate,  generalLimiter,  [body('recipientEmail').isEmail().withMessage('Email penerima tidak valid').normalizeEmail()],  ticketController.transferTicket);router.post(  '/validate',  authenticate,  isValidatorRole,  generalLimiter,  ticketValidationController.validateTicket);router.get(  '/events/:eventId/check-in-stats',  authenticate,  isValidatorRole,  generalLimiter,  ticketValidationController.getEventCheckInStats);module.exports = router;
+const express = require('express');
+const { body } = require('express-validator');
+const ticketController = require('../controllers/ticketController');
+const { authenticate, checkRole } = require('../middleware/auth');
+const { rateLimiters } = require('../middleware/rateLimiter');
+const ticketValidationController = require('../controllers/ticketValidationController');
+const router = express.Router();
+const isValidatorRole = checkRole('creator', 'staff_creator', 'admin');
+const { authMiddleware } = require('../middleware/authMiddleware');
+const { ticketValidation } = require('../middleware/validationMiddleware');
+
+// Public routes
+router.get('/tickets/types/:eventId', ticketValidation.getTypes, ticketController.getTicketTypesByEventId);
+
+// Protected routes
+router.post('/tickets/purchase', authMiddleware.authenticateJWT, ticketController.purchaseTicket);
+router.get('/tickets/my-tickets', authMiddleware.authenticateJWT, ticketController.getMyTickets);
+router.get('/my-tickets', authMiddleware.authenticateJWT, ticketController.getMyTickets);
+router.get('/tickets/check/:ticketId', authMiddleware.authenticateJWT, ticketController.checkTicket);
+router.post('/tickets/validate/:ticketId', authMiddleware.authenticateJWT, ticketController.validateTicket);
+
+// Ticket validation routes
+router.post(
+  '/validate',
+  authenticate,
+  isValidatorRole,
+  rateLimiters.general,
+  ticketValidationController.validateTicket
+);
+router.get(
+  '/events/:eventId/check-in-stats',
+  authenticate,
+  isValidatorRole,
+  rateLimiters.general,
+  ticketValidationController.getEventCheckInStats
+);
+
+// Menambahkan endpoint yang belum ada
+router.post('/validate-promo', authMiddleware.authenticateJWT, ticketController.validatePromoCode);
+
+module.exports = router;

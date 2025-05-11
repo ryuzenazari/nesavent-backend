@@ -102,7 +102,6 @@ const promoCodeSchema = new mongoose.Schema({
   timestamps: true
 });
 
-promoCodeSchema.index({ code: 1 }, { unique: true });
 promoCodeSchema.index({ startDate: 1, endDate: 1 });
 promoCodeSchema.index({ isActive: 1 });
 promoCodeSchema.index({ 'usedBy.userId': 1 });

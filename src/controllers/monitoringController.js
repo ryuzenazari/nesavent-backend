@@ -4,7 +4,6 @@ const logger = require('../utils/logger');
 const { perfMetrics } = require('../services/performanceMonitoringService');
 const errorTracker = require('../services/errorTrackingService');
 const dbHealthService = require('../services/dbHealthService');
-const notificationService = require('../services/notificationService');
 
 const healthCheck = async (req, res) => {
   try {
@@ -142,34 +141,11 @@ const getSystemInfo = async (req, res) => {
   }
 };
 
-const testAlerts = async (req, res) => {
-  try {
-    const { type, message } = req.body;
-    
-    if (!type || !message) {
-      return res.status(400).json({ error: 'Type and message are required' });
-    }
-    
-    await notificationService.sendAlert({
-      type,
-      message,
-      source: 'Manual Test',
-      timestamp: new Date(),
-      metadata: { triggeredBy: req.user.id }
-    });
-    
-    res.json({ success: true, message: 'Alert sent successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
 module.exports = {
   healthCheck,
   getMetrics,
   getErrors,
   getPerformanceMetrics,
   getLogs,
-  getSystemInfo,
-  testAlerts
+  getSystemInfo
 }; 

@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const ratingController = require('../controllers/ratingController');
-const { authenticate, authorize } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
+const { ratingValidation } = require('../middleware/validationMiddleware');
 
-router.post('/events/:eventId/ratings', authenticate, ratingController.createRating);
-router.get('/events/:eventId/ratings', ratingController.getEventRatings);
-router.get('/user/ratings', authenticate, ratingController.getUserRatings);
-router.put('/ratings/:ratingId', authenticate, ratingController.updateRating);
-router.delete('/ratings/:ratingId', authenticate, ratingController.deleteRating);
-router.post('/ratings/:ratingId/like', authenticate, ratingController.likeRating);
-router.put('/ratings/:ratingId/flag', authenticate, authorize(['admin']), ratingController.flagRating);
+// Public routes
+router.get('/ratings/:eventId', ratingValidation.getEventRatings, ratingController.getEventRatings);
+
+// Protected routes
+router.post('/ratings', authMiddleware.authenticateJWT, ratingValidation.createRating, ratingController.createRating);
+router.put('/ratings/:ratingId', authMiddleware.authenticateJWT, ratingController.updateRating);
+router.delete('/ratings/:ratingId', authMiddleware.authenticateJWT, ratingController.deleteRating);
 
 module.exports = router; 

@@ -1,6 +1,6 @@
 const ErrorLog = require('../models/ErrorLog');
 const mongoose = require('mongoose');
-const notificationService = require('./notificationService');
+const logger = require('../utils/logger');
 
 const MAX_ERRORS_IN_MEMORY = 100;
 const NOTIFICATION_THRESHOLD = 5;
@@ -67,16 +67,11 @@ const checkErrorFrequency = async (errorId, errorData) => {
   if (isFrequent && !errorNotified.has(errorId)) {
     errorNotified.add(errorId);
     
-    await notificationService.sendAlert({
-      type: 'error_frequency',
-      message: `Error occurring frequently: ${errorData.message}`,
-      source: 'ErrorTrackingService',
-      metadata: {
-        errorId,
-        count,
-        timeWindow: `${(timeWindow / 1000).toFixed(2)}s`,
-        path: errorData.metadata.path
-      }
+    logger.warn(`Error occurring frequently: ${errorData.message}`, {
+      errorId,
+      count,
+      timeWindow: `${(timeWindow / 1000).toFixed(2)}s`,
+      path: errorData.metadata.path
     });
 
     setTimeout(() => {

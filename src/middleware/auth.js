@@ -5,31 +5,69 @@ const Event = require('../models/Event');
 
 const authenticate = async (req, res, next) => {
   try {
+    // Cek berbagai kemungkinan header token
+    let token = null;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Akses ditolak. Token tidak valid'
-      });
+    const xAccessToken = req.headers['x-access-token'];
+    
+    // Cek header Authorization dengan format Bearer
+    if (authHeader) {
+      if (authHeader.startsWith('Bearer ')) {
+        // Format standard: "Bearer [token]"
+        token = authHeader.split(' ')[1];
+      } else if (authHeader.startsWith('Bearer')) {
+        // Format tanpa spasi: "Bearer[token]"
+        token = authHeader.substring(6);
+      } else {
+        // Format hanya token: "[token]"
+        token = authHeader;
+      }
+    } 
+    // Cek header x-access-token sebagai alternatif
+    else if (xAccessToken) {
+      token = xAccessToken;
     }
-    const token = authHeader.split(' ')[1];
+    
     if (!token) {
       return res.status(401).json({
         success: false,
         message: 'Akses ditolak. Token tidak ditemukan'
       });
     }
+    
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.userId);
+      
+      // Log token untuk debugging
+      logger.debug('JWT token decoded:', { 
+        id: decoded.id,
+        userId: decoded.userId,
+        iat: decoded.iat,
+        exp: decoded.exp 
+      });
+      
+      // Coba cari user dengan id atau userId (untuk mendukung kedua format)
+      const userId = decoded.id || decoded.userId;
+      if (!userId) {
+        logger.error('Token tidak memiliki id atau userId');
+        return res.status(401).json({
+          success: false,
+          message: 'Token tidak valid (tidak ada ID)'
+        });
+      }
+      
+      // Cari user dengan ID yang benar
+      const user = await User.findById(userId);
       if (!user) {
+        logger.error(`User tidak ditemukan dengan ID: ${userId}`);
         return res.status(401).json({
           success: false,
           message: 'Pengguna tidak ditemukan'
         });
       }
+      
       req.user = user;
-      req.userId = decoded.userId;
+      req.userId = userId;
       req.userRole = user.role;
       next();
     } catch (error) {
@@ -139,75 +177,47 @@ const verifyEventCreator = (req, res, next) => {
   next();
 };
 
-const verifyTicketChecker = async (req, res, next) => {
+const verifyTicketChecker = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
       success: false,
       message: 'Autentikasi diperlukan'
     });
   }
-  
-  if (req.user.role === 'admin' || req.user.role === 'creator') {
-    logger.info(`Ticket checker access granted for user ${req.user.email} with role ${req.user.role}`);
-    return next();
+  if (req.user.role !== 'ticket_checker' && req.user.role !== 'admin') {
+    logger.warn(`Ticket checker access denied for user ${req.user.email} with role ${req.user.role}`);
+    return res.status(403).json({
+      success: false,
+      message: 'Akses ditolak. Anda bukan petugas check-in'
+    });
   }
-  
-  if (req.user.role === 'staff_creator') {
-    if (!req.user.staffDetails || !req.user.staffDetails.creatorId) {
-      logger.warn(`Staff creator ${req.user.email} tidak memiliki creatorId yang valid`);
+  logger.info(`Ticket checker access granted for user ${req.user.email}`);
+  next();
+};
+
+// Fungsi untuk mengizinkan akses berdasarkan peran tertentu
+const authorize = (roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Autentikasi diperlukan'
+      });
+    }
+    
+    if (!roles.includes(req.user.role)) {
+      logger.warn(
+        `Access denied for user ${req.user.email} with role ${req.user.role}, required roles: ${roles.join(', ')}`
+      );
       return res.status(403).json({
         success: false,
-        message: 'Akses ditolak. Anda belum terhubung dengan creator manapun'
+        message: 'Akses ditolak. Anda tidak memiliki izin yang diperlukan'
       });
     }
     
-    const eventId = req.body.eventId;
-    if (!eventId) {
-      logger.warn(`Event ID tidak ditemukan dalam request staff creator ${req.user.email}`);
-      return res.status(400).json({
-        success: false,
-        message: 'ID Event diperlukan untuk validasi tiket'
-      });
-    }
-    
-    try {
-      const event = await Event.findById(eventId);
-      if (!event) {
-        return res.status(404).json({
-          success: false,
-          message: 'Event tidak ditemukan'
-        });
-      }
-      
-      if (event.createdBy.toString() !== req.user.staffDetails.creatorId.toString()) {
-        logger.warn(
-          `Staff creator ${req.user.email} mencoba memvalidasi tiket untuk event yang tidak dibuat oleh creator mereka`
-        );
-        return res.status(403).json({
-          success: false,
-          message: 'Akses ditolak. Anda hanya dapat memvalidasi tiket untuk event dari creator yang mengundang Anda'
-        });
-      }
-      
-      logger.info(`Ticket checker access granted for staff ${req.user.email} for event ${eventId}`);
-      return next();
-      
-    } catch (error) {
-      logger.error(`Error memverifikasi staff creator: ${error.message}`);
-      return res.status(500).json({
-        success: false,
-        message: 'Terjadi kesalahan saat memverifikasi akses'
-      });
-    }
-  }
-  
-  logger.warn(
-    `Ticket checker access denied for user ${req.user.email} with role ${req.user.role}`
-  );
-  return res.status(403).json({
-    success: false,
-    message: 'Akses ditolak. Anda tidak memiliki izin untuk validasi tiket'
-  });
+    logger.info(`Access granted for user ${req.user.email} with role ${req.user.role}`);
+    next();
+  };
 };
 
 module.exports = {
@@ -216,5 +226,6 @@ module.exports = {
   verifyAdmin,
   verifyCreator,
   verifyEventCreator,
-  verifyTicketChecker
+  verifyTicketChecker,
+  authorize
 };

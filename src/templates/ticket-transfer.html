@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer Tiket NesaVent</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #4CAF50;
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .button {
+            display: block;
+            width: 200px;
+            margin: 30px auto;
+            padding: 12px 0;
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .ticket-details {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4CAF50;
+        }
+        .highlighted {
+            background-color: #fffde7;
+            padding: 10px;
+            border-left: 3px solid #ffc107;
+            margin-bottom: 15px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{appName}}</h1>
+        </div>
+        
+        <div class="content">
+            <h2>Tiket Telah Ditransfer Ke Anda</h2>
+            <p>Halo {{name}},</p>
+            <p><strong>{{senderName}}</strong> telah mentransfer tiket untuk event berikut ke Anda:</p>
+            
+            <div class="ticket-details">
+                <h3>Detail Event</h3>
+                <p><strong>Nama Event:</strong> {{eventTitle}}</p>
+                <p><strong>Tanggal:</strong> {{eventDate}}</p>
+                <p><strong>Waktu:</strong> {{eventTime}}</p>
+                <p><strong>Lokasi:</strong> {{eventLocation}}</p>
+                <p><strong>Tipe Tiket:</strong> {{ticketType}}</p>
+            </div>
+            
+            <div class="highlighted">
+                <p>Untuk menerima transfer tiket ini, silakan klik tombol di bawah:</p>
+            </div>
+            
+            <a href="{{acceptUrl}}" class="button">Terima Tiket</a>
+            
+            <p>Setelah menerima tiket, Anda dapat melihat detailnya di aplikasi atau website NesaVent.</p>
+            
+            <a href="{{viewTicketUrl}}" class="button" style="background-color: #2196F3;">Lihat Tiket</a>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; {{year}} {{appName}}. Semua hak dilindungi.</p>
+            <p>Email ini dikirim secara otomatis, mohon jangan membalas.</p>
+        </div>
+    </div>
+</body>
+</html> 

@@ -1,9 +1,10 @@
 const socialShareService = require('../services/socialShareService');
+const logger = require('../utils/logger');
 
 const createShareWithShortLink = async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { shareType } = req.body;
     
     if (!shareType) {
@@ -28,6 +29,7 @@ const createShareWithShortLink = async (req, res) => {
       data: result
     });
   } catch (error) {
+    logger.error(`Error creating share with short link: ${error.message}`);
     res.status(400).json({
       success: false,
       message: error.message
@@ -55,6 +57,7 @@ const trackShareClick = async (req, res) => {
       }
     });
   } catch (error) {
+    logger.error(`Error tracking share click: ${error.message}`);
     res.status(400).json({
       success: false,
       message: error.message
@@ -64,7 +67,7 @@ const trackShareClick = async (req, res) => {
 
 const getUserShares = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { page, limit, eventId } = req.query;
     
     const options = {
@@ -80,6 +83,7 @@ const getUserShares = async (req, res) => {
       data: shares
     });
   } catch (error) {
+    logger.error(`Error getting user shares: ${error.message}`);
     res.status(400).json({
       success: false,
       message: error.message
@@ -105,6 +109,7 @@ const getEventShares = async (req, res) => {
       data: shares
     });
   } catch (error) {
+    logger.error(`Error getting event shares: ${error.message}`);
     res.status(400).json({
       success: false,
       message: error.message
@@ -123,6 +128,7 @@ const getShareStatistics = async (req, res) => {
       data: stats
     });
   } catch (error) {
+    logger.error(`Error getting share statistics: ${error.message}`);
     res.status(400).json({
       success: false,
       message: error.message
@@ -133,7 +139,7 @@ const getShareStatistics = async (req, res) => {
 const getSharingLinks = async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
     
     const sharingLinks = await socialShareService.getSharingLinks(eventId, userId);
     
@@ -142,6 +148,7 @@ const getSharingLinks = async (req, res) => {
       data: sharingLinks
     });
   } catch (error) {
+    logger.error(`Error getting sharing links: ${error.message}`);
     res.status(400).json({
       success: false,
       message: error.message

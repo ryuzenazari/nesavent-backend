@@ -16,8 +16,7 @@ const socialShareSchema = new mongoose.Schema(
       required: true
     },
     referralCode: {
-      type: String,
-      index: true
+      type: String
     },
     shortLinkId: {
       type: mongoose.Schema.Types.ObjectId,

@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { authenticate, verifyCreator } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 const creatorController = require('../controllers/creatorController');
 const { documentUpload, handleUploadError } = require('../utils/uploadConfig');
 const router = express.Router();
@@ -9,7 +9,7 @@ const { authenticateJWT, authorizeRole } = require('../middleware/authMiddleware
 // Public routes that don't require authentication
 router.get('/types/:type', creatorController.getCreatorsByType);
 
-router.use(authenticate);
+// Gunakan JWT authentication dan role authorization
 router.use(authenticateJWT);
 router.use(authorizeRole(['creator', 'admin']));
 
@@ -33,7 +33,6 @@ router.get('/verification/status', creatorController.getVerificationStatus);
 
 router.post(
   '/staff',
-  verifyCreator,
   [
     body('email').optional().isEmail().withMessage('Email tidak valid'),
     body('userId').optional().isMongoId().withMessage('User ID tidak valid'),
@@ -44,7 +43,6 @@ router.post(
 
 router.post(
   '/staff/invite',
-  verifyCreator,
   [
     body('email').isEmail().withMessage('Email tidak valid'),
     body('staffName').optional().isString().withMessage('Nama staff harus berupa string'),
@@ -55,13 +53,11 @@ router.post(
 
 router.get(
   '/staff',
-  verifyCreator,
   creatorController.getMyStaff
 );
 
 router.patch(
   '/staff/:staffId',
-  verifyCreator,
   [
     body('permissions').optional().isObject().withMessage('Permissions harus berupa objek'),
     body('staffName').optional().isString().withMessage('Nama staff harus berupa string')
@@ -71,7 +67,6 @@ router.patch(
 
 router.delete(
   '/staff/:staffId',
-  verifyCreator,
   creatorController.removeStaff
 );
 

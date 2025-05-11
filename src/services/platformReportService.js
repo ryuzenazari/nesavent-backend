@@ -1,243 +1,240 @@
 const PlatformReport = require('../models/PlatformReport');
 const Event = require('../models/Event');
-const User = require('../models/User');
 const Ticket = require('../models/Ticket');
-const Payment = require('../models/Payment');
-const PromoCode = require('../models/PromoCode');
-const ContentModeration = require('../models/ContentModeration');
+const Transaction = require('../models/Transaction');
+const User = require('../models/User');
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
+/**
+ * Membuat laporan platform baru
+ */
 const generateReport = async (reportData) => {
   try {
-    const { reportType, startDate, endDate, adminId } = reportData;
+    const { reportType, startDate, endDate, createdBy } = reportData;
     
-    const report = await PlatformReport.generateReport(reportType, startDate, endDate, adminId);
-    
-    await populateReportMetrics(report._id);
-    
-    return report;
-  } catch (error) {
-    throw new Error(`Failed to generate report: ${error.message}`);
-  }
-};
-
-const getReports = async (filters = {}, page = 1, limit = 10) => {
-  try {
-    const skip = (page - 1) * limit;
-    
-    const query = {};
-    
-    if (filters.reportType) {
-      query.reportType = filters.reportType;
+    // Validasi tanggal
+    if (new Date(startDate) > new Date(endDate)) {
+      throw new Error('Tanggal mulai tidak boleh lebih baru dari tanggal akhir');
     }
     
-    if (filters.status) {
-      query.status = filters.status;
-    }
+    // Mendapatkan data statistik platform
+    const reportContent = await collectReportData(startDate, endDate);
     
-    if (filters.startDate && filters.endDate) {
-      query['dateRange.startDate'] = { $gte: new Date(filters.startDate) };
-      query['dateRange.endDate'] = { $lte: new Date(filters.endDate) };
-    }
-    
-    const totalCount = await PlatformReport.countDocuments(query);
-    
-    const reports = await PlatformReport.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('generatedBy', 'name email');
-    
-    return {
-      reports,
-      pagination: {
-        total: totalCount,
-        page,
-        limit,
-        pages: Math.ceil(totalCount / limit)
-      }
-    };
-  } catch (error) {
-    throw new Error(`Failed to get reports: ${error.message}`);
-  }
-};
-
-const getReportById = async (reportId) => {
-  try {
-    const report = await PlatformReport.findById(reportId)
-      .populate('generatedBy', 'name email')
-      .populate('viewedBy.adminId', 'name email');
-    
-    if (!report) {
-      throw new Error('Report not found');
-    }
-    
-    return report;
-  } catch (error) {
-    throw new Error(`Failed to get report: ${error.message}`);
-  }
-};
-
-const publishReport = async (reportId, adminId) => {
-  try {
-    const result = await PlatformReport.publishReport(reportId, adminId);
-    return result;
-  } catch (error) {
-    throw new Error(`Failed to publish report: ${error.message}`);
-  }
-};
-
-const markReportAsViewed = async (reportId, adminId) => {
-  try {
-    const result = await PlatformReport.markAsViewed(reportId, adminId);
-    return result;
-  } catch (error) {
-    throw new Error(`Failed to mark report as viewed: ${error.message}`);
-  }
-};
-
-const deleteReport = async (reportId) => {
-  try {
-    const result = await PlatformReport.findByIdAndDelete(reportId);
-    
-    if (!result) {
-      throw new Error('Report not found');
-    }
-    
-    return { success: true, message: 'Report deleted successfully' };
-  } catch (error) {
-    throw new Error(`Failed to delete report: ${error.message}`);
-  }
-};
-
-const populateReportMetrics = async (reportId) => {
-  try {
-    const report = await PlatformReport.findById(reportId);
-    
-    if (!report) {
-      throw new Error('Report not found');
-    }
-    
-    const { startDate, endDate } = report.dateRange;
-    
-    const userMetrics = await getUserMetrics(startDate, endDate);
-    report.metrics.users = userMetrics;
-    
-    const eventMetrics = await getEventMetrics(startDate, endDate);
-    report.metrics.events = eventMetrics;
-    
-    const ticketMetrics = await getTicketMetrics(startDate, endDate);
-    report.metrics.tickets = ticketMetrics;
-    
-    const transactionMetrics = await getTransactionMetrics(startDate, endDate);
-    report.metrics.transactions = transactionMetrics;
-    
-    const revenueMetrics = await getRevenueMetrics(startDate, endDate);
-    report.metrics.revenue = revenueMetrics;
-    
-    const engagementMetrics = await getEngagementMetrics(startDate, endDate);
-    report.metrics.engagement = engagementMetrics;
-    
-    const promoCodeMetrics = await getPromoCodeMetrics(startDate, endDate);
-    report.metrics.promoCodes = promoCodeMetrics;
-    
-    const contentModerationMetrics = await getContentModerationMetrics(startDate, endDate);
-    report.metrics.contentModeration = contentModerationMetrics;
-    
-    report.insights = generateInsights(report.metrics);
-    
-    report.charts = generateCharts(report.metrics);
+    const report = new PlatformReport({
+      reportType,
+      startDate,
+      endDate,
+      content: reportContent,
+      createdBy
+    });
     
     await report.save();
     return report;
   } catch (error) {
-    throw new Error(`Failed to populate report metrics: ${error.message}`);
+    logger.error('Error generating platform report:', error);
+    throw error;
   }
 };
 
-const getUserMetrics = async (startDate, endDate) => {
-  return {
-    total: 0,
-    active: 0,
-    new: 0,
-    verified: 0,
-    creators: 0
-  };
+/**
+ * Mengumpulkan data untuk membentuk laporan
+ */
+const collectReportData = async (startDate, endDate) => {
+  try {
+    const dateRange = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate)
+    };
+    
+    // User statistics
+    const newUsersCount = await User.countDocuments({
+      createdAt: dateRange
+    });
+    
+    const usersByRole = await User.aggregate([
+      { $match: { createdAt: dateRange } },
+      { $group: { _id: '$role', count: { $sum: 1 } } }
+    ]);
+    
+    // Event statistics
+    const newEventsCount = await Event.countDocuments({
+      createdAt: dateRange
+    });
+    
+    const eventsByStatus = await Event.aggregate([
+      { $match: { createdAt: dateRange } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    const eventsByCategory = await Event.aggregate([
+      { $match: { createdAt: dateRange } },
+      { $group: { _id: '$category', count: { $sum: 1 } } }
+    ]);
+    
+    // Ticket statistics
+    const ticketsSold = await Ticket.countDocuments({
+      createdAt: dateRange,
+      paymentStatus: 'paid'
+    });
+    
+    const ticketsSoldByType = await Ticket.aggregate([
+      { 
+        $match: { 
+          createdAt: dateRange,
+          paymentStatus: 'paid'
+        } 
+      },
+      { $group: { _id: '$ticketType', count: { $sum: 1 } } }
+    ]);
+    
+    // Revenue statistics
+    const revenue = await Transaction.aggregate([
+      { 
+        $match: { 
+          createdAt: dateRange,
+          paymentStatus: 'completed'
+        } 
+      },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    
+    const revenueByDay = await Transaction.aggregate([
+      { 
+        $match: { 
+          createdAt: dateRange,
+          paymentStatus: 'completed'
+        } 
+      },
+      {
+        $group: {
+          _id: { 
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+            day: { $dayOfMonth: '$createdAt' }
+          },
+          total: { $sum: '$amount' }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
+    ]);
+    
+    return {
+      userStats: {
+        newUsers: newUsersCount,
+        usersByRole: usersByRole.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {})
+      },
+      eventStats: {
+        newEvents: newEventsCount,
+        eventsByStatus: eventsByStatus.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {}),
+        eventsByCategory: eventsByCategory.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {})
+      },
+      ticketStats: {
+        ticketsSold,
+        ticketsByType: ticketsSoldByType.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {})
+      },
+      revenueStats: {
+        totalRevenue: revenue.length > 0 ? revenue[0].total : 0,
+        revenueByDay: revenueByDay.map(day => ({
+          date: `${day._id.year}-${day._id.month}-${day._id.day}`,
+          amount: day.total
+        }))
+      }
+    };
+  } catch (error) {
+    logger.error('Error collecting report data:', error);
+    throw error;
+  }
 };
 
-const getEventMetrics = async (startDate, endDate) => {
-  return {
-    total: 0,
-    active: 0,
-    completed: 0,
-    cancelled: 0,
-    byCategory: new Map()
-  };
+/**
+ * Mendapatkan semua laporan
+ */
+const getReports = async (filter = {}, options = {}) => {
+  try {
+    const reports = await PlatformReport.find(filter)
+      .populate('createdBy', 'name email')
+      .sort(options.sort || { createdAt: -1 })
+      .skip(options.skip || 0)
+      .limit(options.limit || 50);
+    
+    return reports;
+  } catch (error) {
+    logger.error('Error getting platform reports:', error);
+    throw error;
+  }
 };
 
-const getTicketMetrics = async (startDate, endDate) => {
-  return {
-    sold: 0,
-    revenue: 0,
-    average: 0,
-    free: 0,
-    paid: 0
-  };
+/**
+ * Mendapatkan laporan berdasarkan ID
+ */
+const getReportById = async (reportId) => {
+  try {
+    const report = await PlatformReport.findById(reportId)
+      .populate('createdBy', 'name email');
+    
+    if (!report) {
+      throw new Error('Report not found');
+    }
+    
+    return report;
+  } catch (error) {
+    logger.error(`Error getting report by ID ${reportId}:`, error);
+    throw error;
+  }
 };
 
-const getTransactionMetrics = async (startDate, endDate) => {
-  return {
-    total: 0,
-    volume: 0,
-    successful: 0,
-    failed: 0,
-    refunded: 0
-  };
+/**
+ * Mempublikasikan laporan
+ */
+const publishReport = async (reportId) => {
+  try {
+    const report = await PlatformReport.findByIdAndUpdate(
+      reportId,
+      { 
+        isPublished: true,
+        publishedAt: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!report) {
+      throw new Error('Report not found');
+    }
+    
+    return report;
+  } catch (error) {
+    logger.error(`Error publishing report ${reportId}:`, error);
+    throw error;
+  }
 };
 
-const getRevenueMetrics = async (startDate, endDate) => {
-  return {
-    gross: 0,
-    net: 0,
-    platformFees: 0,
-    paymentFees: 0,
-    byCategory: new Map()
-  };
-};
-
-const getEngagementMetrics = async (startDate, endDate) => {
-  return {
-    wishlist: 0,
-    views: 0,
-    shares: 0,
-    ratings: 0,
-    averageRating: 0
-  };
-};
-
-const getPromoCodeMetrics = async (startDate, endDate) => {
-  return {
-    active: 0,
-    used: 0,
-    discount: 0
-  };
-};
-
-const getContentModerationMetrics = async (startDate, endDate) => {
-  return {
-    cases: 0,
-    resolved: 0,
-    flagged: 0,
-    removed: 0
-  };
-};
-
-const generateInsights = (metrics) => {
-  return [];
-};
-
-const generateCharts = (metrics) => {
-  return [];
+/**
+ * Menghapus laporan
+ */
+const deleteReport = async (reportId) => {
+  try {
+    const result = await PlatformReport.findByIdAndDelete(reportId);
+    if (!result) {
+      throw new Error('Report not found');
+    }
+    return result;
+  } catch (error) {
+    logger.error(`Error deleting report ${reportId}:`, error);
+    throw error;
+  }
 };
 
 module.exports = {
@@ -245,7 +242,5 @@ module.exports = {
   getReports,
   getReportById,
   publishReport,
-  markReportAsViewed,
-  deleteReport,
-  populateReportMetrics
+  deleteReport
 }; 

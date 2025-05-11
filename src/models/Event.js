@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const slugify = require('slugify');
+const mongoosePaginate = require('mongoose-paginate-v2');
 const ticketTypeSchema = new mongoose.Schema(
   {
     name: {
@@ -47,7 +48,8 @@ const eventSchema = new mongoose.Schema(
     },
     slug: {
       type: String,
-      unique: true
+      unique: true,
+      index: true
     },
     description: {
       type: String,
@@ -245,9 +247,6 @@ const eventSchema = new mongoose.Schema(
   }
 );
 eventSchema.index({
-  slug: 1
-});
-eventSchema.index({
   creator: 1
 });
 eventSchema.index({
@@ -259,15 +258,16 @@ eventSchema.index({
 eventSchema.index({
   category: 1
 });
+eventSchema.plugin(mongoosePaginate);
 eventSchema.pre('save', function (next) {
   if (this.isModified('title')) {
     this.slug = slugify(this.title, {
       lower: true
     });
   }
-  next();
-});
-eventSchema.pre('save', function (next) {
+  if (this.isModified()) {
+    this.updatedAt = Date.now();
+  }
   if (this.isModified('isRecurring') && this.isRecurring && this.recurringPattern) {
     this.generateRecurringInstances();
   }

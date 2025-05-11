@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const helmet = require('helmet');
 const passport = require('./config/passport');
-const { generalLimiter } = require('./middleware/rateLimiter');
+const { rateLimiters } = require('./middleware/rateLimiter');
 const loggerMiddleware = require('./middleware/loggerMiddleware');
 const logger = require('./utils/logger');
 const authRoutes = require('./routes/authRoutes');
@@ -17,7 +17,6 @@ const ticketRoutes = require('./routes/ticketRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const creatorRoutes = require('./routes/creatorRoutes');
-const staffRoutes = require('./routes/staffRoutes');
 const shortLinkRoutes = require('./routes/shortLinkRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const studentVerificationRoutes = require('./routes/studentVerificationRoutes');
@@ -28,8 +27,8 @@ const creatorFollowRoutes = require('./routes/creatorFollowRoutes');
 const abuseReportRoutes = require('./routes/abuseReportRoutes');
 const compression = require('compression');
 const { createIndexes } = require('./models/indexes');
-const { rateLimiters } = require('./middleware/rateLimiter');
 const monitoringRoutes = require('./routes/monitoringRoutes');
+const testingRoutes = require('./routes/testingRoutes');
 const { measureMiddleware } = require('./services/performanceMonitoringService');
 const errorTracker = require('./services/errorTrackingService');
 const userRoutes = require('./routes/userRoutes');
@@ -43,7 +42,12 @@ app.use(
     extended: true
   })
 );
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token'],
+  credentials: true
+}));
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(passport.initialize());
@@ -81,7 +85,6 @@ if (!fs.existsSync(ktmUploadDir)) {
 app.use('/uploads/events', express.static(path.join(__dirname, '../uploads/events')));
 app.use('/uploads/profiles', express.static(path.join(__dirname, '../uploads/profiles')));
 app.use('/uploads/documents', express.static(path.join(__dirname, '../uploads/documents')));
-app.use(generalLimiter);
 app.use('/api/auth/login', rateLimiters.auth);
 app.use('/api/auth/register', rateLimiters.register);
 app.use('/api/events', rateLimiters.events);
@@ -101,45 +104,49 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/shortlinks', shortLinkRoutes);
+app.use('/s', shortLinkRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/student-verification', studentVerificationRoutes);
+app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/creator', creatorRoutes);
-app.use('/api/staff', staffRoutes);
-app.use('/api/shortlinks', shortLinkRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/student-verification', studentVerificationRoutes);
-app.use('/api', ratingRoutes);
-app.use('/api', feedbackRoutes);
-app.use('/api', socialShareRoutes);
-app.use('/api', creatorFollowRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/social', socialShareRoutes);
+app.use('/api/follows', creatorFollowRoutes);
 app.use('/api/reports', abuseReportRoutes);
-app.use('/api/monitoring', monitoringRoutes);
-app.use('/s', shortLinkRoutes);
-app.use('/api/user', userRoutes);
+
+// Daftarkan rute pengujian hanya dalam mode development
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/testing', testingRoutes);
+  logger.info('Testing routes diaktifkan dalam mode development');
+}
+
 app.use((req, res, next) => {
   const error = new Error('Tidak ditemukan');
   error.status = 404;
   logger.warn(`Route tidak ditemukan: ${req.method} ${req.originalUrl}`);
   next(error);
 });
-app.use((error, req, res, next) => {
-  errorTracker.trackError(error, { req });
+app.use((err, req, res, next) => {
+  errorTracker.trackError(err, { req });
   
   logger.error('Kesalahan server', {
-    error: error.message,
-    stack: error.stack
+    service: 'nesavent-api',
+    error: err.message,
+    stack: err.stack
   });
   
-  res.status(error.status || 500);
-  res.json({
+  const statusCode = err.status || 500;
+  res.status(statusCode).json({
     success: false,
-    message: error.message || 'Terjadi kesalahan pada server'
+    message: err.message || 'Terjadi kesalahan pada server'
   });
 });
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
+mongoose.connect(process.env.MONGODB_URI)
 .then(async () => {
   console.log('Connected to MongoDB');
   

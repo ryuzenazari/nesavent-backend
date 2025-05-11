@@ -1,5 +1,9 @@
 const ContentModeration = require('../models/ContentModeration');
 const AdminNotification = require('../models/AdminNotification');
+const ModerationCase = require('../models/ModerationCase');
+const Event = require('../models/Event');
+const User = require('../models/User');
+const logger = require('../utils/logger');
 
 const reportContent = async (contentType, contentId, userId, reason, details) => {
   try {
@@ -26,52 +30,28 @@ const reportContent = async (contentType, contentId, userId, reason, details) =>
   }
 };
 
-const getModerationCases = async (filters = {}, page = 1, limit = 10) => {
+const getModerationCases = async (filter = {}, options = {}) => {
   try {
-    const skip = (page - 1) * limit;
+    const cases = await ModerationCase.find(filter)
+      .populate('reportedBy', 'name email')
+      .populate('contentOwnerId', 'name email')
+      .sort(options.sort || { createdAt: -1 })
+      .skip(options.skip || 0)
+      .limit(options.limit || 50);
     
-    const query = {};
-    
-    if (filters.status) {
-      query.status = filters.status;
-    }
-    
-    if (filters.contentType) {
-      query.contentType = filters.contentType;
-    }
-    
-    if (filters.severity) {
-      query.severity = filters.severity;
-    }
-    
-    const totalCount = await ContentModeration.countDocuments(query);
-    
-    const cases = await ContentModeration.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('reportedBy.userId', 'name email')
-      .populate('moderatedBy.userId', 'name email');
-    
-    return {
-      cases,
-      pagination: {
-        total: totalCount,
-        page,
-        limit,
-        pages: Math.ceil(totalCount / limit)
-      }
-    };
+    return cases;
   } catch (error) {
-    throw new Error(`Failed to get moderation cases: ${error.message}`);
+    logger.error('Error getting moderation cases:', error);
+    throw error;
   }
 };
 
-const getModerationCase = async (caseId) => {
+const getModerationCaseById = async (caseId) => {
   try {
-    const moderationCase = await ContentModeration.findById(caseId)
-      .populate('reportedBy.userId', 'name email')
-      .populate('moderatedBy.userId', 'name email');
+    const moderationCase = await ModerationCase.findById(caseId)
+      .populate('reportedBy', 'name email')
+      .populate('contentOwnerId', 'name email')
+      .populate('reviewedBy', 'name email');
     
     if (!moderationCase) {
       throw new Error('Moderation case not found');
@@ -79,23 +59,71 @@ const getModerationCase = async (caseId) => {
     
     return moderationCase;
   } catch (error) {
-    throw new Error(`Failed to get moderation case: ${error.message}`);
+    logger.error(`Error getting moderation case by ID ${caseId}:`, error);
+    throw error;
   }
 };
 
-const moderateContent = async (caseId, moderatorId, action, notes) => {
+const createModerationCase = async (caseData) => {
   try {
-    const result = await ContentModeration.moderateContent(caseId, moderatorId, action, notes);
-    
-    await AdminNotification.markActionTaken(
-      { 'relatedTo.model': 'ContentModeration', 'relatedTo.id': caseId },
-      moderatorId,
-      `Content moderated with action: ${action}`
-    );
-    
-    return result;
+    const moderationCase = new ModerationCase(caseData);
+    await moderationCase.save();
+    return moderationCase;
   } catch (error) {
-    throw new Error(`Failed to moderate content: ${error.message}`);
+    logger.error('Error creating moderation case:', error);
+    throw error;
+  }
+};
+
+const moderateContent = async (caseId, action, reviewerId, notes = '') => {
+  try {
+    const moderationCase = await ModerationCase.findById(caseId);
+    
+    if (!moderationCase) {
+      throw new Error('Moderation case not found');
+    }
+    
+    if (moderationCase.status !== 'pending') {
+      throw new Error('This case has already been moderated');
+    }
+    
+    moderationCase.status = action;
+    moderationCase.reviewedBy = reviewerId;
+    moderationCase.reviewedAt = new Date();
+    moderationCase.notes = notes;
+    
+    // Jika konten akan dihapus
+    if (action === 'removed') {
+      switch (moderationCase.contentType) {
+        case 'event':
+          await Event.findByIdAndUpdate(moderationCase.contentId, { 
+            status: 'removed',
+            removedReason: notes,
+            removedAt: new Date(),
+            removedBy: reviewerId
+          });
+          break;
+          
+        case 'user':
+          await User.findByIdAndUpdate(moderationCase.contentId, {
+            isActive: false,
+            deactivationReason: notes,
+            deactivatedAt: new Date(),
+            deactivatedBy: reviewerId
+          });
+          break;
+          
+        // Tambahkan case untuk tipe konten lainnya
+        default:
+          logger.warn(`No removal handling for content type: ${moderationCase.contentType}`);
+      }
+    }
+    
+    await moderationCase.save();
+    return moderationCase;
+  } catch (error) {
+    logger.error(`Error moderating content for case ${caseId}:`, error);
+    throw error;
   }
 };
 
@@ -174,7 +202,8 @@ const getContentModerationStats = async () => {
 module.exports = {
   reportContent,
   getModerationCases,
-  getModerationCase,
+  getModerationCaseById,
+  createModerationCase,
   moderateContent,
   getContentModerationStats
 }; 

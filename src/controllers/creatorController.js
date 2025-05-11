@@ -5,13 +5,13 @@ const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
 const Event = require('../models/Event');
-const { sendEmail } = require('../utils/emailSender');
+const { sendEmail } = require('../services/emailService');
 const creatorDashboardService = require('../services/creatorDashboardService');
 const eventTemplateService = require('../services/eventTemplateService');
 const payoutService = require('../services/payoutService');
 const multiEventService = require('../services/multiEventService');
 
-exports.submitVerification = async (req, res) => {
+const submitVerification = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -99,7 +99,7 @@ exports.submitVerification = async (req, res) => {
   }
 };
 
-exports.getVerificationStatus = async (req, res) => {
+const getVerificationStatus = async (req, res) => {
   try {
     const verifications = await CreatorVerification.find({
       user: req.user._id
@@ -120,7 +120,7 @@ exports.getVerificationStatus = async (req, res) => {
   }
 };
 
-exports.addStaffCreator = async (req, res) => {
+const addStaffCreator = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -191,7 +191,7 @@ exports.addStaffCreator = async (req, res) => {
   }
 };
 
-exports.inviteStaff = async (req, res) => {
+const inviteStaff = async (req, res) => {
   try {
     const creatorId = req.user._id;
     const { email, staffName, permissions } = req.body;
@@ -273,7 +273,7 @@ exports.inviteStaff = async (req, res) => {
   }
 };
 
-exports.getMyStaff = async (req, res) => {
+const getMyStaff = async (req, res) => {
   try {
     const creatorId = req.user._id;
     
@@ -296,7 +296,7 @@ exports.getMyStaff = async (req, res) => {
   }
 };
 
-exports.updateStaffPermissions = async (req, res) => {
+const updateStaffPermissions = async (req, res) => {
   try {
     const creatorId = req.user._id;
     const { staffId } = req.params;
@@ -349,7 +349,7 @@ exports.updateStaffPermissions = async (req, res) => {
   }
 };
 
-exports.removeStaff = async (req, res) => {
+const removeStaff = async (req, res) => {
   try {
     const creatorId = req.user._id;
     const { staffId } = req.params;
@@ -787,6 +787,13 @@ const getCreatorsByType = async (req, res) => {
 };
 
 module.exports = {
+  submitVerification,
+  getVerificationStatus,
+  addStaffCreator,
+  inviteStaff,
+  getMyStaff,
+  updateStaffPermissions, 
+  removeStaff,
   getDashboard,
   getEventStatistics,
   createEventTemplate,

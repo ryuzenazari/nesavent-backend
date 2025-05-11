@@ -10,6 +10,5 @@ router.get('/errors', authenticate, adminOnly, monitoringController.getErrors);
 router.get('/performance', authenticate, adminOnly, monitoringController.getPerformanceMetrics);
 router.get('/logs', authenticate, adminOnly, monitoringController.getLogs);
 router.get('/system', authenticate, adminOnly, monitoringController.getSystemInfo);
-router.post('/test-alerts', authenticate, adminOnly, monitoringController.testAlerts);
 
 module.exports = router; 

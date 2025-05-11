@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { verifyTicketQR } = require('../utils/qrCodeGenerator');
 const logger = require('../utils/logger');
 
-exports.validateTicket = async (req, res) => {
+const validateTicket = async (req, res) => {
   try {
     const { qrData, scanLocation, eventId } = req.body;
 
@@ -123,7 +123,7 @@ exports.validateTicket = async (req, res) => {
   }
 };
 
-exports.getEventCheckInStats = async (req, res) => {
+const getEventCheckInStats = async (req, res) => {
   try {
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
@@ -200,4 +200,9 @@ exports.getEventCheckInStats = async (req, res) => {
       message: 'Terjadi kesalahan saat mengambil statistik check-in'
     });
   }
+};
+
+module.exports = {
+  validateTicket,
+  getEventCheckInStats
 };

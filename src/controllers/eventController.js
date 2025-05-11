@@ -1,7 +1,7 @@
 const { validationResult } = require('express-validator');
 const Event = require('../models/Event');
 const User = require('../models/User');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
@@ -9,6 +9,7 @@ const shortLinkService = require('../services/shortLinkService');
 const eventService = require('../services/eventService');
 const cacheService = require('../services/cacheService');
 const imageOptimization = require('../services/imageOptimizationService');
+const responseFormatter = require('../utils/responseFormatter');
 const createEvent = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -154,27 +155,19 @@ const getAllEvents = async (req, res) => {
 };
 const getEventById = async (req, res) => {
   try {
-    const eventId = req.params.id;
-    const cacheKey = `${cacheService.CACHE_KEYS.EVENT_DETAILS}${eventId}`;
-    
-    const cachedEvent = cacheService.get(cacheKey);
-    if (cachedEvent) {
-      return res.json(cachedEvent);
-    }
+    const eventId = req.params.eventId;
     
     const event = await Event.findById(eventId)
-      .populate('creator', 'username email profilePicture')
-      .populate('ticketTypes');
+      .populate('creator', 'name email profileImage');
       
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return responseFormatter.notFound(res, "Event tidak ditemukan");
     }
     
-    cacheService.set(cacheKey, event, 600); // Cache for 10 minutes
-    
-    res.json(event);
+    return responseFormatter.success(res, "Detail event berhasil diambil", event);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching event", error: error.message });
+    logger.error(`Error getting event details: ${error.message || 'Unknown error'}`);
+    return responseFormatter.error(res, "Terjadi kesalahan saat mengambil detail event", error.message || 'Unknown error');
   }
 };
 const updateEvent = async (req, res) => {
@@ -645,6 +638,233 @@ const approveRefund = async (req, res) => {
     });
   }
 };
+const approveEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const adminId = req.user._id;
+
+    // Cek apakah event ada
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event tidak ditemukan'
+      });
+    }
+
+    // Update status event menjadi approved
+    event.status = 'approved';
+    event.modifiedBy = adminId;
+    event.approvedAt = new Date();
+    await event.save();
+
+    // Kirim respons sukses
+    res.status(200).json({
+      success: true,
+      message: 'Event berhasil disetujui',
+      data: event
+    });
+  } catch (error) {
+    logger.error('Error in approveEvent controller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat menyetujui event',
+      error: error.message
+    });
+  }
+};
+const rejectEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user._id;
+
+    // Cek apakah event ada
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event tidak ditemukan'
+      });
+    }
+
+    // Update status event menjadi rejected
+    event.status = 'rejected';
+    event.rejectionReason = reason || 'Tidak memenuhi persyaratan';
+    event.modifiedBy = adminId;
+    event.rejectedAt = new Date();
+    await event.save();
+
+    // Kirim respons sukses
+    res.status(200).json({
+      success: true,
+      message: 'Event berhasil ditolak',
+      data: event
+    });
+  } catch (error) {
+    logger.error('Error in rejectEvent controller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat menolak event',
+      error: error.message
+    });
+  }
+};
+
+// Fungsi untuk mendapatkan daftar event
+const getEvents = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      search = '', 
+      category,
+      startDate,
+      endDate,
+      status = 'approved'
+    } = req.query;
+    
+    const query = { status };
+    
+    // Filter berdasarkan pencarian
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { organizer: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Filter berdasarkan kategori
+    if (category) {
+      query.category = category;
+    }
+    
+    // Filter berdasarkan tanggal
+    if (startDate && endDate) {
+      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    } else if (startDate) {
+      query.date = { $gte: new Date(startDate) };
+    } else if (endDate) {
+      query.date = { $lte: new Date(endDate) };
+    }
+    
+    const options = {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      sort: { date: 1 }, // Urut berdasarkan tanggal terdekat
+      populate: { path: 'creator', select: 'name email profileImage' }
+    };
+    
+    const events = await Event.paginate(query, options);
+    
+    res.status(200).json({
+      success: true,
+      data: events.docs,
+      pagination: {
+        total: events.totalDocs,
+        page: events.page,
+        pages: events.totalPages,
+        limit: events.limit
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting events: ' + (error.message || 'Unknown error'));
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengambil daftar event',
+      error: error.message || String(error)
+    });
+  }
+};
+
+// Fungsi untuk mendapatkan event berdasarkan shortLink
+const getEventByShortLink = async (req, res) => {
+  try {
+    const { shortLink } = req.params;
+    
+    // Cari shortLink di database
+    const shortLinkDoc = await shortLinkService.getShortLinkByCode(shortLink);
+    
+    if (!shortLinkDoc || shortLinkDoc.targetType !== 'event') {
+      return res.status(404).json({
+        success: false,
+        message: 'Link tidak valid atau sudah tidak tersedia'
+      });
+    }
+    
+    // Cari event berdasarkan ID dari shortLink
+    const event = await Event.findById(shortLinkDoc.targetId)
+      .populate('creator', 'name email profileImage')
+      .populate('ticketTypes');
+    
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event tidak ditemukan'
+      });
+    }
+    
+    // Catat kunjungan
+    await shortLinkService.trackShortLinkVisit(shortLink, req.ip);
+    
+    res.status(200).json({
+      success: true,
+      data: event
+    });
+  } catch (error) {
+    logger.error('Error getting event by short link: ' + (error.message || 'Unknown error'));
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengambil detail event',
+      error: error.message || String(error)
+    });
+  }
+};
+
+/**
+ * @desc    Mencari event berdasarkan kata kunci
+ * @route   GET /api/events/search
+ * @access  Public
+ */
+const searchEvents = async (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    // Gunakan text search dengan regex untuk mendukung pencarian fleksibel
+    const events = await Event.find({
+      $or: [
+        { title: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+        { organizer: { $regex: q, $options: 'i' } },
+        { location: { $regex: q, $options: 'i' } },
+        { category: { $regex: q, $options: 'i' } }
+      ],
+      status: 'approved'
+    })
+    .populate('creator', 'name email profileImage')
+    .sort({ startDate: 1 });
+    
+    res.json({
+      success: true,
+      count: events.length,
+      events
+    });
+  } catch (error) {
+    logger.error('Error saat mencari event', {
+      error: error.message,
+      query: req.query.q
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mencari event',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -661,5 +881,10 @@ module.exports = {
   setupRecurringEvent,
   setupRefundPolicy,
   processRefund,
-  approveRefund
+  approveRefund,
+  approveEvent,
+  rejectEvent,
+  getEvents,
+  getEventByShortLink,
+  searchEvents
 };

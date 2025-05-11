@@ -4,17 +4,36 @@ const redis = require('redis');
 const logger = require('../utils/logger');
 
 let client;
+let redisAvailable = false;
 
-try {
-  client = redis.createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
-  });
-  
-  client.on('error', (err) => {
-    console.error('Redis client error:', err);
-  });
-} catch (error) {
-  console.error('Redis connection failed:', error);
+// Coba setup Redis hanya jika konfigurasi tersedia
+if (process.env.REDIS_URL) {
+  try {
+    client = redis.createClient({
+      url: process.env.REDIS_URL || 'redis://localhost:6379'
+    });
+    
+    client.on('error', (err) => {
+      logger.error('Redis client error:', err);
+      redisAvailable = false;
+    });
+
+    client.on('connect', () => {
+      logger.info('Redis connected successfully');
+      redisAvailable = true;
+    });
+
+    // Coba connect tapi jangan block aplikasi jika gagal
+    client.connect().catch(err => {
+      logger.error('Redis connection failed:', err);
+      redisAvailable = false;
+    });
+  } catch (error) {
+    logger.error('Redis initialization failed:', error);
+    redisAvailable = false;
+  }
+} else {
+  logger.info('REDIS_URL not provided, using memory store for rate limiting');
 }
 
 const createRateLimiter = (options = {}) => {
@@ -36,11 +55,19 @@ const createRateLimiter = (options = {}) => {
     keyGenerator
   };
 
-  if (client) {
-    config.store = new RedisStore({
-      sendCommand: (...args) => client.sendCommand(args),
-      prefix: 'ratelimit:'
-    });
+  // Gunakan Redis store hanya jika Redis tersedia
+  if (client && redisAvailable) {
+    try {
+      config.store = new RedisStore({
+        sendCommand: (...args) => client.sendCommand(args),
+        prefix: 'ratelimit:'
+      });
+      logger.info('Using Redis store for rate limiting');
+    } catch (error) {
+      logger.error('Failed to create Redis store, falling back to memory store:', error);
+    }
+  } else {
+    logger.info('Using memory store for rate limiting');
   }
 
   return rateLimit(config);
@@ -92,15 +119,7 @@ const endpointLimiters = {
 
 const ipWhitelist = new Set(['127.0.0.1', '::1']);
 
-const bypassRateLimit = (req, res, next) => {
-  if (ipWhitelist.has(req.ip)) {
-    return next();
-  }
-  return endpointLimiters.general(req, res, next);
-};
-
 module.exports = {
   createRateLimiter,
-  rateLimiters: endpointLimiters,
-  bypassRateLimit
+  rateLimiters: endpointLimiters
 };

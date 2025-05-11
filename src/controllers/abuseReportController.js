@@ -4,7 +4,7 @@ const { createAuditLog } = require('../services/auditService');
 const { sendNotification } = require('../services/notificationService');
 
 // Buat laporan penyalahgunaan baru
-exports.createReport = async (req, res) => {
+const createReport = async (req, res) => {
   try {
     const { 
       reportedUserId, 
@@ -80,7 +80,7 @@ exports.createReport = async (req, res) => {
 };
 
 // Dapatkan semua laporan (untuk admin)
-exports.getAllReports = async (req, res) => {
+const getAllReports = async (req, res) => {
   try {
     const { 
       status, 
@@ -147,7 +147,7 @@ exports.getAllReports = async (req, res) => {
 };
 
 // Dapatkan detail laporan
-exports.getReportById = async (req, res) => {
+const getReportById = async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -198,7 +198,7 @@ exports.getReportById = async (req, res) => {
 };
 
 // Update status laporan (admin only)
-exports.updateReportStatus = async (req, res) => {
+const updateReportStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reviewNotes, resolution, priority, escalationLevel } = req.body;
@@ -287,7 +287,7 @@ exports.updateReportStatus = async (req, res) => {
 };
 
 // Dapatkan laporan yang dibuat oleh user saat ini
-exports.getMyReports = async (req, res) => {
+const getMyReports = async (req, res) => {
   try {
     const { 
       status, 
@@ -324,7 +324,7 @@ exports.getMyReports = async (req, res) => {
 };
 
 // Menambahkan laporan terkait
-exports.addRelatedReport = async (req, res) => {
+const addRelatedReport = async (req, res) => {
   try {
     const { id } = req.params;
     const { relatedReportId } = req.body;
@@ -368,7 +368,7 @@ exports.addRelatedReport = async (req, res) => {
 };
 
 // Mendapatkan statistik laporan penyalahgunaan (admin only)
-exports.getReportStats = async (req, res) => {
+const getReportStats = async (req, res) => {
   try {
     // Hanya admin yang bisa melihat statistik
     if (!req.user.isAdmin) {
@@ -447,4 +447,14 @@ exports.getReportStats = async (req, res) => {
       message: 'Terjadi kesalahan saat mengambil statistik laporan'
     });
   }
+};
+
+module.exports = {
+  createReport,
+  getAllReports,
+  getReportById,
+  updateReportStatus,
+  getMyReports,
+  addRelatedReport,
+  getReportStats
 }; 

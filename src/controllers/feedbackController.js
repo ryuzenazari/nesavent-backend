@@ -1,22 +1,37 @@
 const feedbackService = require('../services/feedbackService');
 const Event = require('../models/Event');
+const Feedback = require('../models/Feedback');
+const logger = require('../utils/logger');
 
 const createFeedback = async (req, res) => {
   try {
-    const { eventId } = req.params;
-    const userId = req.user.id;
-    const feedbackData = req.body;
+    const userId = req.user._id;
+    const { type, subject, message, email } = req.body;
     
-    const feedback = await feedbackService.createFeedback(userId, eventId, feedbackData);
+    const feedback = new Feedback({
+      user: userId,
+      type,
+      subject,
+      message,
+      email: email || req.user.email,
+      status: 'pending'
+    });
+    
+    await feedback.save();
+    
+    logger.info(`Feedback baru dibuat oleh user ${userId}`);
     
     res.status(201).json({
       success: true,
+      message: 'Feedback berhasil dikirim',
       data: feedback
     });
   } catch (error) {
-    res.status(400).json({
+    logger.error(`Error membuat feedback: ${error.message}`);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Terjadi kesalahan saat mengirim feedback',
+      error: error.message
     });
   }
 };
@@ -44,16 +59,26 @@ const updateFeedback = async (req, res) => {
 const deleteFeedback = async (req, res) => {
   try {
     const { feedbackId } = req.params;
-    const userId = req.user.id;
-    const isAdmin = req.user.role === 'admin';
     
-    const result = await feedbackService.deleteFeedback(feedbackId, userId, isAdmin);
+    const result = await Feedback.findByIdAndDelete(feedbackId);
     
-    res.status(200).json(result);
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Feedback tidak ditemukan'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Feedback berhasil dihapus'
+    });
   } catch (error) {
-    res.status(400).json({
+    logger.error(`Error menghapus feedback: ${error.message}`);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Terjadi kesalahan saat menghapus feedback',
+      error: error.message
     });
   }
 };
@@ -100,80 +125,177 @@ const getEventFeedbacks = async (req, res) => {
   }
 };
 
-const getUserFeedbacks = async (req, res) => {
+const getUserFeedback = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { page, limit, status } = req.query;
+    const userId = req.user._id;
+    const { page = 1, limit = 10 } = req.query;
     
     const options = {
-      page: parseInt(page) || 1,
-      limit: parseInt(limit) || 10,
-      status
+      page: parseInt(page),
+      limit: parseInt(limit),
+      sort: { createdAt: -1 }
     };
     
-    const feedbacks = await feedbackService.getUserFeedbacks(userId, options);
+    const feedbacks = await Feedback.find({ user: userId })
+      .sort(options.sort)
+      .skip((options.page - 1) * options.limit)
+      .limit(options.limit);
+      
+    const total = await Feedback.countDocuments({ user: userId });
     
     res.status(200).json({
       success: true,
-      data: feedbacks
+      data: feedbacks,
+      pagination: {
+        total,
+        page: options.page,
+        limit: options.limit,
+        pages: Math.ceil(total / options.limit)
+      }
     });
   } catch (error) {
-    res.status(400).json({
+    logger.error(`Error mendapatkan feedback pengguna: ${error.message}`);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Terjadi kesalahan saat mengambil feedback',
+      error: error.message
     });
   }
 };
 
-const respondToFeedback = async (req, res) => {
+const getAllFeedback = async (req, res) => {
   try {
-    const { feedbackId } = req.params;
-    const responderId = req.user.id;
-    const { content } = req.body;
+    const { page = 1, limit = 10, status, type } = req.query;
     
-    if (!content) {
-      return res.status(400).json({
-        success: false,
-        message: 'Konten respons diperlukan'
-      });
+    const options = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      sort: { createdAt: -1 }
+    };
+    
+    const query = {};
+    
+    if (status) {
+      query.status = status;
     }
     
-    const feedback = await feedbackService.respondToFeedback(feedbackId, responderId, content);
+    if (type) {
+      query.type = type;
+    }
+    
+    const feedbacks = await Feedback.find(query)
+      .populate('user', 'name email')
+      .sort(options.sort)
+      .skip((options.page - 1) * options.limit)
+      .limit(options.limit);
+      
+    const total = await Feedback.countDocuments(query);
     
     res.status(200).json({
       success: true,
-      data: feedback
+      data: feedbacks,
+      pagination: {
+        total,
+        page: options.page,
+        limit: options.limit,
+        pages: Math.ceil(total / options.limit)
+      }
     });
   } catch (error) {
-    res.status(400).json({
+    logger.error(`Error mendapatkan semua feedback: ${error.message}`);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Terjadi kesalahan saat mengambil feedback',
+      error: error.message
     });
   }
 };
 
-const changeFeedbackStatus = async (req, res) => {
+const updateFeedbackStatus = async (req, res) => {
   try {
     const { feedbackId } = req.params;
     const { status } = req.body;
     
-    if (!status) {
+    if (!['pending', 'in_progress', 'resolved', 'rejected'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Status diperlukan'
+        message: 'Status tidak valid'
       });
     }
     
-    const feedback = await feedbackService.changeFeedbackStatus(feedbackId, status);
+    const feedback = await Feedback.findByIdAndUpdate(
+      feedbackId,
+      { 
+        status,
+        processedBy: req.user._id,
+        processedAt: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!feedback) {
+      return res.status(404).json({
+        success: false,
+        message: 'Feedback tidak ditemukan'
+      });
+    }
     
     res.status(200).json({
       success: true,
+      message: 'Status feedback berhasil diperbarui',
       data: feedback
     });
   } catch (error) {
-    res.status(400).json({
+    logger.error(`Error mengubah status feedback: ${error.message}`);
+    res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Terjadi kesalahan saat memperbarui status feedback',
+      error: error.message
+    });
+  }
+};
+
+const replyToFeedback = async (req, res) => {
+  try {
+    const { feedbackId } = req.params;
+    const { reply } = req.body;
+    
+    if (!reply) {
+      return res.status(400).json({
+        success: false,
+        message: 'Isi balasan diperlukan'
+      });
+    }
+    
+    const feedback = await Feedback.findByIdAndUpdate(
+      feedbackId,
+      { 
+        reply,
+        status: 'resolved',
+        repliedBy: req.user._id,
+        repliedAt: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!feedback) {
+      return res.status(404).json({
+        success: false,
+        message: 'Feedback tidak ditemukan'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Balasan feedback berhasil dikirim',
+      data: feedback
+    });
+  } catch (error) {
+    logger.error(`Error membalas feedback: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengirim balasan',
+      error: error.message
     });
   }
 };
@@ -201,8 +323,9 @@ module.exports = {
   updateFeedback,
   deleteFeedback,
   getEventFeedbacks,
-  getUserFeedbacks,
-  respondToFeedback,
-  changeFeedbackStatus,
+  getUserFeedback,
+  getAllFeedback,
+  updateFeedbackStatus,
+  replyToFeedback,
   getFeedbackStatistics
 }; 

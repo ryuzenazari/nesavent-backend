@@ -1,15 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const feedbackController = require('../controllers/feedbackController');
-const { authenticate, authorize, isEventCreator } = require('../middleware/authMiddleware');
+const { authenticate, authorize } = require('../middleware/auth');
 
-router.post('/events/:eventId/feedback', authenticate, feedbackController.createFeedback);
-router.get('/events/:eventId/feedback', authenticate, feedbackController.getEventFeedbacks);
-router.get('/events/:eventId/feedback/statistics', authenticate, isEventCreator, feedbackController.getFeedbackStatistics);
-router.get('/user/feedback', authenticate, feedbackController.getUserFeedbacks);
-router.put('/feedback/:feedbackId', authenticate, feedbackController.updateFeedback);
-router.delete('/feedback/:feedbackId', authenticate, feedbackController.deleteFeedback);
-router.post('/feedback/:feedbackId/respond', authenticate, isEventCreator, feedbackController.respondToFeedback);
-router.put('/feedback/:feedbackId/status', authenticate, isEventCreator, feedbackController.changeFeedbackStatus);
+// Feedback dari user
+router.post('/', authenticate, feedbackController.createFeedback);
+router.get('/user', authenticate, feedbackController.getUserFeedback);
+
+// Untuk admin
+router.get('/', authenticate, authorize(['admin']), feedbackController.getAllFeedback);
+router.put('/:feedbackId/status', authenticate, authorize(['admin']), feedbackController.updateFeedbackStatus);
+router.post('/:feedbackId/reply', authenticate, authorize(['admin']), feedbackController.replyToFeedback);
+router.delete('/:feedbackId', authenticate, authorize(['admin']), feedbackController.deleteFeedback);
 
 module.exports = router; 

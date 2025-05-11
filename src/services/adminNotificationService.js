@@ -1,64 +1,99 @@
 const AdminNotification = require('../models/AdminNotification');
+const logger = require('../utils/logger');
 
-const createNotification = async (notificationData) => {
+/**
+ * Mendapatkan semua notifikasi admin
+ */
+const getNotifications = async (filter = {}, options = {}) => {
   try {
-    const result = await AdminNotification.createNotification(notificationData);
-    return result;
+    const notifications = await AdminNotification.find(filter)
+      .sort(options.sort || { createdAt: -1 })
+      .skip(options.skip || 0)
+      .limit(options.limit || 50);
+    
+    return notifications;
   } catch (error) {
-    throw new Error(`Failed to create notification: ${error.message}`);
+    logger.error('Error getting admin notifications:', error);
+    throw error;
   }
 };
 
-const getNotifications = async (filters = {}, page = 1, limit = 20) => {
+/**
+ * Menambahkan notifikasi baru untuk admin
+ */
+const createNotification = async (notificationData) => {
   try {
-    const skip = (page - 1) * limit;
-    
-    const query = {};
-    
-    if (filters.type) {
-      query.type = filters.type;
-    }
-    
-    if (filters.priority) {
-      query.priority = filters.priority;
-    }
-    
-    if (filters.read !== undefined) {
-      query.read = filters.read;
-    }
-    
-    if (filters.actionRequired !== undefined) {
-      query.actionRequired = filters.actionRequired;
-    }
-    
-    if (filters.adminId) {
-      query.readBy = { 
-        $not: { 
-          $elemMatch: { 
-            adminId: filters.adminId 
-          } 
-        } 
-      };
-    }
-    
-    const totalCount = await AdminNotification.countDocuments(query);
-    
-    const notifications = await AdminNotification.find(query)
-      .sort({ priority: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-    
-    return {
-      notifications,
-      pagination: {
-        total: totalCount,
-        page,
-        limit,
-        pages: Math.ceil(totalCount / limit)
-      }
-    };
+    const notification = new AdminNotification(notificationData);
+    await notification.save();
+    return notification;
   } catch (error) {
-    throw new Error(`Failed to get notifications: ${error.message}`);
+    logger.error('Error creating admin notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Menandai notifikasi sebagai telah dibaca
+ */
+const markAsRead = async (notificationId) => {
+  try {
+    const notification = await AdminNotification.findByIdAndUpdate(
+      notificationId,
+      { isRead: true, readAt: new Date() },
+      { new: true }
+    );
+    
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
+    
+    return notification;
+  } catch (error) {
+    logger.error(`Error marking notification ${notificationId} as read:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Menandai semua notifikasi sebagai telah dibaca
+ */
+const markAllAsRead = async (filter = {}) => {
+  try {
+    const result = await AdminNotification.updateMany(
+      { ...filter, isRead: false },
+      { isRead: true, readAt: new Date() }
+    );
+    
+    return result;
+  } catch (error) {
+    logger.error('Error marking all notifications as read:', error);
+    throw error;
+  }
+};
+
+/**
+ * Menandai notifikasi telah ditindaklanjuti
+ */
+const markActionTaken = async (notificationId, actionData) => {
+  try {
+    const notification = await AdminNotification.findByIdAndUpdate(
+      notificationId,
+      { 
+        actionTaken: true, 
+        actionTakenAt: new Date(),
+        actionDetails: actionData
+      },
+      { new: true }
+    );
+    
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
+    
+    return notification;
+  } catch (error) {
+    logger.error(`Error marking action taken for notification ${notificationId}:`, error);
+    throw error;
   }
 };
 
@@ -104,58 +139,6 @@ const getUnreadNotificationCount = async (adminId) => {
     };
   } catch (error) {
     throw new Error(`Failed to get unread notification count: ${error.message}`);
-  }
-};
-
-const markAsRead = async (notificationId, adminId) => {
-  try {
-    const result = await AdminNotification.markAsRead(notificationId, adminId);
-    return result;
-  } catch (error) {
-    throw new Error(`Failed to mark notification as read: ${error.message}`);
-  }
-};
-
-const markAllAsRead = async (adminId, filters = {}) => {
-  try {
-    const query = {
-      readBy: { 
-        $not: { 
-          $elemMatch: { 
-            adminId 
-          } 
-        } 
-      }
-    };
-    
-    if (filters.type) {
-      query.type = filters.type;
-    }
-    
-    if (filters.priority) {
-      query.priority = filters.priority;
-    }
-    
-    const notifications = await AdminNotification.find(query);
-    
-    const updatePromises = notifications.map(notification => 
-      AdminNotification.markAsRead(notification._id, adminId)
-    );
-    
-    await Promise.all(updatePromises);
-    
-    return { success: true, count: updatePromises.length };
-  } catch (error) {
-    throw new Error(`Failed to mark all notifications as read: ${error.message}`);
-  }
-};
-
-const markActionTaken = async (notificationId, adminId, notes = '') => {
-  try {
-    const result = await AdminNotification.markActionTaken(notificationId, adminId, notes);
-    return result;
-  } catch (error) {
-    throw new Error(`Failed to mark action taken: ${error.message}`);
   }
 };
 
@@ -236,12 +219,12 @@ const getNotificationStats = async () => {
 };
 
 module.exports = {
-  createNotification,
   getNotifications,
-  getUnreadNotificationCount,
+  createNotification,
   markAsRead,
   markAllAsRead,
   markActionTaken,
+  getUnreadNotificationCount,
   deleteNotification,
   getNotificationStats
 }; 

@@ -1,7 +1,69 @@
-const StudentVerification = require('../models/StudentVerification');
+const mongoose = require('mongoose');
 const User = require('../models/User');
+const logger = require('../utils/logger');
 
-async function requestVerification({ userId, method, ktmUrl, email }) {
+// Definisikan model StudentVerification di dalam file ini
+const studentVerificationSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true
+  },
+  method: {
+    type: String,
+    enum: ['email', 'ktm'],
+    required: true
+  },
+  ktmUrl: {
+    type: String
+  },
+  email: {
+    type: String
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  nim: {
+    type: String
+  },
+  faculty: {
+    type: String
+  },
+  major: {
+    type: String
+  },
+  history: [
+    {
+      status: String,
+      changedAt: Date,
+      changedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      note: String
+    }
+  ],
+  requestedAt: {
+    type: Date,
+    default: Date.now
+  },
+  approvedAt: Date,
+  rejectedAt: Date,
+  note: String
+}, {
+  timestamps: true
+});
+
+const StudentVerification = mongoose.model('StudentVerification', studentVerificationSchema);
+
+async function requestVerification({ userId, method, ktmUrl, email, nim, faculty, major }) {
   const existing = await StudentVerification.findOne({ user: userId });
   if (existing && existing.status === 'pending') {
     throw new Error('Pengajuan verifikasi masih dalam proses');
@@ -11,6 +73,9 @@ async function requestVerification({ userId, method, ktmUrl, email }) {
     method,
     ktmUrl: method === 'ktm' ? ktmUrl : undefined,
     email: method === 'email' ? email : undefined,
+    nim,
+    faculty,
+    major,
     status: 'pending',
     history: [
       {
@@ -66,6 +131,17 @@ async function getPendingVerifications() {
     .sort({ requestedAt: 1 });
 }
 
+async function getAllVerifications() {
+  return StudentVerification.find()
+    .populate('user', 'name email')
+    .sort({ createdAt: -1 });
+}
+
+async function getVerificationById(id) {
+  return StudentVerification.findById(id)
+    .populate('user', 'name email');
+}
+
 async function getUserVerification(userId) {
   return StudentVerification.findOne({ user: userId });
 }
@@ -80,6 +156,8 @@ module.exports = {
   approveVerification,
   rejectVerification,
   getPendingVerifications,
+  getAllVerifications,
+  getVerificationById,
   getUserVerification,
   getVerificationHistory
 }; 

@@ -1,1 +1,476 @@
-const nodemailer = require('nodemailer');const { logger } = require('../utils/logger');const transporter = nodemailer.createTransport({  service: process.env.EMAIL_SERVICE,  auth: {    user: process.env.EMAIL_USER,    pass: process.env.EMAIL_PASS  }});const sendVerificationEmail = async (email, verificationToken) => {  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;  const mailOptions = {    from: process.env.EMAIL_USER,    to: email,    subject: 'Verifikasi Email NesaVent',    html: `      <div style="font-family: Arial, sans-serif;    max-width: 600px;    margin: 0 auto;    ">        <h2>Verifikasi Email Anda</h2>        <p>Terima kasih telah mendaftar di NesaVent. Silakan klik tombol di bawah untuk verifikasi email Anda:</p>        <div style="text-align: center;    margin: 30px 0;    ">          <a href="${verificationUrl}" style="background-color: #4CAF50;    color: white;    padding: 12px 20px;    text-decoration: none;    border-radius: 4px;    font-weight: bold;    ">Verifikasi Email</a>        </div>        <p>Jika Anda tidak melakukan pendaftaran di NesaVent, silakan abaikan email ini.</p>        <p>Link ini akan kadaluarsa dalam 24 jam.</p>      </div>    `  };  try {    await transporter.sendMail(mailOptions);    logger.info(`Verification email sent to: ${email}`);    return true;  } catch (error) {    logger.error(`Failed to send verification email to ${email}: ${error.message}`);    throw new Error('Gagal mengirim email verifikasi');  }};const sendTicketConfirmation = async (email, ticketData, qrCodeDataUrl) => {  const mailOptions = {    from: process.env.EMAIL_USER,    to: email,    subject: `Konfirmasi Tiket: ${ticketData.eventTitle}`,    html: `      <div style="font-family: Arial, sans-serif;    max-width: 600px;    margin: 0 auto;    ">        <h2>Tiket Anda Berhasil Dipesan</h2>        <p>Terima kasih telah membeli tiket untuk event: <strong>${          ticketData.eventTitle        }</strong></p>        <div style="background-color: #f5f5f5;    padding: 15px;    border-radius: 5px;    margin: 20px 0;    ">          <h3>Detail Tiket</h3>          <p><strong>Nomor Tiket:</strong> ${ticketData.ticketId}</p>          <p><strong>Event:</strong> ${ticketData.eventTitle}</p>          <p><strong>Tanggal:</strong> ${new Date(ticketData.eventDate).toLocaleDateString(            'id-ID'          )}</p>          <p><strong>Waktu:</strong> ${ticketData.eventTime}</p>          <p><strong>Lokasi:</strong> ${ticketData.eventLocation}</p>          <p><strong>Tipe Tiket:</strong> ${ticketData.ticketType}</p>        </div>        <div style="text-align: center;    margin: 30px 0;    ">          <p>Tunjukkan QR Code ini saat masuk ke venue:</p>          <img src="${qrCodeDataUrl}" alt="QR Code Tiket" style="max-width: 250px;    height: auto;    ">        </div>        <p>Informasi lebih lanjut, silakan kunjungi website NesaVent atau hubungi panitia acara.</p>      </div>    `  };  try {    await transporter.sendMail(mailOptions);    logger.info(`Ticket confirmation email sent to: ${email}`);    return true;  } catch (error) {    logger.error(`Failed to send ticket confirmation to ${email}: ${error.message}`);    throw new Error('Gagal mengirim email konfirmasi tiket');  }};const sendPaymentConfirmation = async (email, paymentData) => {  const mailOptions = {    from: process.env.EMAIL_USER,    to: email,    subject: 'Konfirmasi Pembayaran NesaVent',    html: `      <div style="font-family: Arial, sans-serif;    max-width: 600px;    margin: 0 auto;    ">        <h2>Pembayaran Berhasil</h2>        <p>Pembayaran Anda untuk event <strong>${          paymentData.eventTitle        }</strong> telah berhasil.</p>        <div style="background-color: #f5f5f5;    padding: 15px;    border-radius: 5px;    margin: 20px 0;    ">          <h3>Detail Pembayaran</h3>          <p><strong>ID Transaksi:</strong> ${paymentData.transactionId}</p>          <p><strong>Jumlah:</strong> Rp ${paymentData.amount.toLocaleString('id-ID')}</p>          <p><strong>Metode Pembayaran:</strong> ${paymentData.paymentMethod}</p>          <p><strong>Waktu Pembayaran:</strong> ${new Date(paymentData.paymentTime).toLocaleString(            'id-ID'          )}</p>        </div>        <p>Tiket Anda telah dikirim dalam email terpisah.</p>        <p>Terima kasih telah menggunakan NesaVent!</p>      </div>    `  };  try {    await transporter.sendMail(mailOptions);    logger.info(`Payment confirmation email sent to: ${email}`);    return true;  } catch (error) {    logger.error(`Failed to send payment confirmation to ${email}: ${error.message}`);    throw new Error('Gagal mengirim email konfirmasi pembayaran');  }};const sendEventReminder = async (email, eventData) => {  const mailOptions = {    from: process.env.EMAIL_USER,    to: email,    subject: `Pengingat Event: ${eventData.title}`,    html: `      <div style="font-family: Arial, sans-serif;    max-width: 600px;    margin: 0 auto;    ">        <h2>Pengingat Event</h2>        <p>Event <strong>${eventData.title}</strong> akan berlangsung dalam 24 jam!</p>        <div style="background-color: #f5f5f5;    padding: 15px;    border-radius: 5px;    margin: 20px 0;    ">          <h3>Detail Event</h3>          <p><strong>Event:</strong> ${eventData.title}</p>          <p><strong>Tanggal:</strong> ${new Date(eventData.date).toLocaleDateString('id-ID')}</p>          <p><strong>Waktu:</strong> ${eventData.time}</p>          <p><strong>Lokasi:</strong> ${eventData.location}</p>        </div>        <p>Jangan lupa untuk membawa tiket dan KTP Anda.</p>        <p>Sampai jumpa di event!</p>      </div>    `  };  try {    await transporter.sendMail(mailOptions);    logger.info(`Event reminder email sent to: ${email}`);    return true;  } catch (error) {    logger.error(`Failed to send event reminder to ${email}: ${error.message}`);    throw new Error('Gagal mengirim email pengingat event');  }};const sendTicketTransferNotification = async (email, recipientName, ticket, event, fromUser) => {  const mailOptions = {    from: process.env.EMAIL_USER,    to: email,    subject: `Tiket Ditransfer ke Anda: ${event.title}`,    html: `      <div style="font-family: Arial, sans-serif;    max-width: 600px;    margin: 0 auto;    ">        <h2>Anda Menerima Tiket yang Ditransfer</h2>        <p>Halo <strong>${recipientName}</strong>,</p>        <p><strong>${fromUser.name}</strong> (<em>${          fromUser.email        }</em>) telah mentransfer tiket event kepada Anda.</p>        <div style="background-color: #f5f5f5;    padding: 15px;    border-radius: 5px;    margin: 20px 0;    ">          <h3>Detail Tiket</h3>          <p><strong>Nomor Tiket:</strong> ${ticket.ticketNumber}</p>          <p><strong>Event:</strong> ${event.title}</p>          <p><strong>Tanggal:</strong> ${new Date(event.date).toLocaleDateString('id-ID', {            weekday: 'long',            year: 'numeric',            month: 'long',            day: 'numeric'          })}</p>          <p><strong>Waktu:</strong> ${event.time}</p>          <p><strong>Lokasi:</strong> ${event.location}</p>          <p><strong>Tipe Tiket:</strong> ${ticket.ticketTypeName || ticket.ticketType}</p>        </div>        <div style="text-align: center;    margin: 30px 0;    ">          <p>Berikut adalah QR Code tiket Anda:</p>          <img src="${ticket.qrCode.dataUrl}" alt="QR Code Tiket" style="max-width: 250px;    height: auto;    ">          <p><strong>Kode Verifikasi:</strong> ${ticket.qrCode.verificationCode}</p>        </div>        <p>Simpan tiket ini dan tunjukkan QR code saat masuk ke venue.</p>        <p>Untuk informasi lebih lanjut, silakan kunjungi website NesaVent atau hubungi panitia acara.</p>      </div>    `  };  try {    await transporter.sendMail(mailOptions);    logger.info(`Ticket transfer notification sent to: ${email}`, {      ticketId: ticket._id    });    return true;  } catch (error) {    logger.error(`Failed to send ticket transfer notification to ${email}: ${error.message}`);    throw new Error('Gagal mengirim email notifikasi transfer tiket');  }};const sendTicketTransferConfirmation = async (email, userName, ticket, event, recipientUser) => {  const mailOptions = {    from: process.env.EMAIL_USER,    to: email,    subject: `Konfirmasi Transfer Tiket: ${event.title}`,    html: `      <div style="font-family: Arial, sans-serif;    max-width: 600px;    margin: 0 auto;    ">        <h2>Transfer Tiket Berhasil</h2>        <p>Halo <strong>${userName}</strong>,</p>        <p>Tiket Anda untuk event <strong>${          event.title        }</strong> telah berhasil ditransfer kepada:</p>        <div style="background-color: #f5f5f5;    padding: 15px;    border-radius: 5px;    margin: 20px 0;    ">          <h3>Detail Penerima</h3>          <p><strong>Nama:</strong> ${recipientUser.name}</p>          <p><strong>Email:</strong> ${recipientUser.email}</p>        </div>        <div style="background-color: #f5f5f5;    padding: 15px;    border-radius: 5px;    margin: 20px 0;    ">          <h3>Detail Tiket</h3>          <p><strong>Nomor Tiket:</strong> ${ticket.ticketNumber}</p>          <p><strong>Event:</strong> ${event.title}</p>          <p><strong>Tipe Tiket:</strong> ${ticket.ticketTypeName || ticket.ticketType}</p>        </div>        <p>Tiket ini tidak lagi tercantum di akun Anda dan telah dipindahkan ke akun penerima.</p>      </div>    `  };  try {    await transporter.sendMail(mailOptions);    logger.info(`Ticket transfer confirmation sent to: ${email}`, {      ticketId: ticket._id    });    return true;  } catch (error) {    logger.error(`Failed to send ticket transfer confirmation to ${email}: ${error.message}`);    throw new Error('Gagal mengirim email konfirmasi transfer tiket');  }};module.exports = {  sendVerificationEmail,  sendTicketConfirmation,  sendPaymentConfirmation,  sendEventReminder,  sendTicketTransferNotification,  sendTicketTransferConfirmation};
+// File ini adalah pengalih (alias) ke implementasi emailService yang sebenarnya
+// untuk menjaga kompatibilitas dengan kode yang sudah menggunakan file ini
+const nodemailer = require('nodemailer');
+const logger = require('../utils/logger');
+const fs = require('fs');
+const path = require('path');
+const handlebars = require('handlebars');
+
+logger.info('Email service alias loaded - redirecting to unified email service');
+
+// Log konfigurasi email
+logger.info('Email configuration loaded:', {
+  smtpHost: process.env.SMTP_HOST,
+  smtpPort: process.env.SMTP_PORT,
+  smtpSecure: process.env.SMTP_SECURE,
+  smtpUser: process.env.SMTP_USER ? `${process.env.SMTP_USER.substring(0, 5)}...` : undefined,
+});
+
+// Konfigurasi SMTP transporter tunggal
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT, 10),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  }
+});
+
+// Verifikasi koneksi SMTP pada startup
+transporter
+  .verify()
+  .then(() => logger.info('Server siap mengirim email'))
+  .catch(err =>
+    logger.error('Tidak dapat terhubung ke server email', {
+      error: err.message
+    })
+  );
+
+/**
+ * Membaca file template HTML
+ * @param {string} filePath - Path file relatif dari direktori templates
+ * @returns {string} - Konten file HTML
+ */
+const readHTMLFile = filePath => {
+  try {
+    // Gunakan path absolut untuk menemukan template
+    const templateDir = path.join(process.cwd(), 'src', 'templates');
+    const fullPath = path.join(templateDir, filePath);
+    
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`Template tidak ditemukan: ${filePath}`);
+    }
+    
+    const fileContent = fs.readFileSync(fullPath, 'utf-8');
+    return fileContent;
+  } catch (error) {
+    logger.error('Gagal membaca file template email', {
+      error: error.message,
+      filePath,
+      fullPath: path.join(process.cwd(), 'src', 'templates', filePath)
+    });
+    throw new Error(`Gagal membaca template email: ${error.message}`);
+  }
+};
+
+/**
+ * Membuat template HTML dengan data yang diberikan
+ * @param {string} filePath - Path ke file template
+ * @param {Object} replacements - Data untuk disisipkan ke template
+ * @returns {string} - HTML yang sudah dirender
+ */
+const createTemplate = (filePath, replacements) => {
+  try {
+    const html = readHTMLFile(filePath);
+    const template = handlebars.compile(html);
+    return template(replacements);
+  } catch (error) {
+    logger.error('Gagal membuat template email', {
+      error: error.message,
+      filePath
+    });
+    throw new Error(`Gagal membuat template email: ${error.message}`);
+  }
+};
+
+/**
+ * Mengirim email verifikasi ke pengguna
+ * @param {string} email - Alamat email penerima
+ * @param {string} name - Nama penerima
+ * @param {string} token - Token verifikasi
+ * @returns {Object} - Status pengiriman email
+ */
+const sendVerificationEmail = async (email, name, token) => {
+  try {
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    const htmlContent = createTemplate('verification-email.html', {
+      name,
+      verificationUrl,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.SMTP_USER}@mailtrap.io>`,
+      to: email,
+      subject: 'Verifikasi Akun NesaVent Anda',
+      html: htmlContent
+    };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email verifikasi terkirim', {
+      messageId: info.messageId,
+      email
+    });
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (error) {
+    logger.error('Gagal mengirim email verifikasi', {
+      error: error.message,
+      email
+    });
+    return {
+      success: false,
+      message: 'Gagal mengirim email verifikasi'
+    };
+  }
+};
+
+/**
+ * Mengirim konfirmasi tiket ke pengguna
+ * @param {string} email - Alamat email penerima
+ * @param {string} name - Nama penerima
+ * @param {Object} ticket - Info tiket
+ * @param {Object} event - Info acara
+ * @returns {Object} - Status pengiriman email
+ */
+const sendTicketConfirmation = async (email, name, ticket, event) => {
+  try {
+    const htmlContent = createTemplate('ticket-confirmation.html', {
+      name,
+      eventTitle: event.title,
+      eventDate: new Date(event.date).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      eventTime: event.time,
+      eventLocation: event.location,
+      ticketNumber: ticket.ticketNumber,
+      ticketType: ticket.ticketType === 'student' ? 'Mahasiswa' : 'Reguler',
+      ticketPrice: ticket.price.toLocaleString('id-ID', {
+        style: 'currency',
+        currency: 'IDR'
+      }),
+      qrCodeImage: ticket.qrCode?.dataUrl || '',
+      viewTicketUrl: `${process.env.FRONTEND_URL}/tickets/${ticket._id}`,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.SMTP_USER}@mailtrap.io>`,
+      to: email,
+      subject: `Tiket Anda untuk ${event.title}`,
+      html: htmlContent
+    };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email konfirmasi tiket terkirim', {
+      messageId: info.messageId,
+      email,
+      ticketId: ticket._id
+    });
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (error) {
+    logger.error('Gagal mengirim email konfirmasi tiket', {
+      error: error.message,
+      email,
+      ticketId: ticket?._id
+    });
+    return {
+      success: false,
+      message: 'Gagal mengirim email konfirmasi tiket'
+    };
+  }
+};
+
+/**
+ * Mengirim email reset password
+ * @param {string} email - Alamat email penerima 
+ * @param {string} name - Nama penerima
+ * @param {string} token - Token reset password
+ * @returns {Object} - Status pengiriman email
+ */
+const sendPasswordResetEmail = async (email, name, token) => {
+  try {
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    const htmlContent = createTemplate('reset-password.html', {
+      name,
+      resetUrl,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.SMTP_USER}@mailtrap.io>`,
+      to: email,
+      subject: 'Reset Password NesaVent Anda',
+      html: htmlContent
+    };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email reset password terkirim', {
+      messageId: info.messageId,
+      email
+    });
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (error) {
+    logger.error('Gagal mengirim email reset password', {
+      error: error.message,
+      email
+    });
+    return {
+      success: false,
+      message: 'Gagal mengirim email reset password'
+    };
+  }
+};
+
+/**
+ * Mengirim konfirmasi pembayaran
+ * @param {string} email - Alamat email penerima
+ * @param {string} name - Nama penerima
+ * @param {Object} paymentData - Data pembayaran
+ * @returns {Object} - Status pengiriman email
+ */
+const sendPaymentConfirmation = async (email, name, paymentData) => {
+  try {
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Pembayaran Berhasil</h2>
+        <p>Halo ${name},</p>
+        <p>Pembayaran Anda untuk event <strong>${paymentData.eventTitle}</strong> telah berhasil.</p>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3>Detail Pembayaran</h3>
+          <p><strong>ID Transaksi:</strong> ${paymentData.transactionId}</p>
+          <p><strong>Jumlah:</strong> Rp ${paymentData.amount.toLocaleString('id-ID')}</p>
+          <p><strong>Metode Pembayaran:</strong> ${paymentData.paymentMethod}</p>
+          <p><strong>Waktu Pembayaran:</strong> ${new Date(paymentData.paymentTime).toLocaleString('id-ID')}</p>
+        </div>
+        <p>Tiket Anda telah dikirim dalam email terpisah.</p>
+        <p>Terima kasih telah menggunakan NesaVent!</p>
+      </div>
+    `;
+    
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.SMTP_USER}@mailtrap.io>`,
+      to: email,
+      subject: 'Konfirmasi Pembayaran NesaVent',
+      html: htmlContent
+    };
+    
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email konfirmasi pembayaran terkirim', {
+      messageId: info.messageId,
+      email
+    });
+    
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (error) {
+    logger.error('Gagal mengirim email konfirmasi pembayaran', {
+      error: error.message,
+      email
+    });
+    return {
+      success: false,
+      message: 'Gagal mengirim email konfirmasi pembayaran'
+    };
+  }
+};
+
+/**
+ * Fungsi generik untuk mengirim email (kompatibilitas dengan berbagai format)
+ * @param {Object} options - Opsi email
+ * @param {string} options.to - Alamat email penerima
+ * @param {string} options.subject - Subjek email
+ * @param {Object} options.data - Data untuk template
+ * @returns {Object} - Status pengiriman email
+ */
+const sendEmail = async (options) => {
+  try {
+    // Cek jika format adalah format lama (object dengan property to, subject, template)
+    if (typeof options === 'object' && options.to && options.subject) {
+      // Ekstrak nama dan email
+      const email = options.to;
+      const name = options.data?.name || '';
+      const subject = options.subject;
+      
+      // Buat email HTML sederhana
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>${subject}</h2>
+          <p>Halo ${name},</p>
+          <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            ${Object.entries(options.data || {}).map(([key, value]) => {
+              if (typeof value === 'string') {
+                return `<p><strong>${key}:</strong> ${value}</p>`;
+              }
+              return '';
+            }).join('')}
+          </div>
+          <p>Terima kasih telah menggunakan NesaVent!</p>
+        </div>
+      `;
+      
+      const mailOptions = {
+        from: `"NesaVent" <${process.env.SMTP_USER}@mailtrap.io>`,
+        to: email,
+        subject: subject,
+        html: htmlContent
+      };
+      
+      const info = await transporter.sendMail(mailOptions);
+      logger.info(`Email generik terkirim: ${subject}`, {
+        messageId: info.messageId,
+        email
+      });
+      
+      return {
+        success: true,
+        messageId: info.messageId
+      };
+    }
+    
+    logger.warn('Format email tidak dikenali');
+    return { success: false, message: 'Format email tidak dikenali' };
+  } catch (error) {
+    logger.error(`Gagal mengirim email generik: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Mengirim notifikasi transfer tiket ke penerima
+ * @param {string} email - Alamat email penerima
+ * @param {string} name - Nama penerima
+ * @param {Object} ticket - Info tiket
+ * @param {Object} event - Info acara
+ * @returns {Object} - Status pengiriman email
+ */
+const sendTicketTransferNotification = async (email, name, ticket, event, sender) => {
+  try {
+    const htmlContent = createTemplate('ticket-transfer.html', {
+      name,
+      senderName: sender.name,
+      eventTitle: event.title,
+      eventDate: new Date(event.date).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      eventTime: event.time,
+      eventLocation: event.location,
+      ticketType: ticket.ticketTypeName,
+      acceptUrl: `${process.env.FRONTEND_URL}/tickets/accept-transfer/${ticket._id}`,
+      viewTicketUrl: `${process.env.FRONTEND_URL}/tickets/${ticket._id}`,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.SMTP_USER}@mailtrap.io>`,
+      to: email,
+      subject: `Anda menerima tiket untuk ${event.title}`,
+      html: htmlContent
+    };
+    
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email notifikasi transfer tiket terkirim', {
+      messageId: info.messageId,
+      email,
+      ticketId: ticket._id
+    });
+    
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (error) {
+    logger.error('Gagal mengirim email notifikasi transfer tiket', {
+      error: error.message,
+      email,
+      ticketId: ticket?._id
+    });
+    return {
+      success: false,
+      message: 'Gagal mengirim email notifikasi transfer tiket'
+    };
+  }
+};
+
+/**
+ * Mengirim konfirmasi transfer tiket ke pengirim
+ * @param {string} email - Alamat email pengirim
+ * @param {string} name - Nama pengirim
+ * @param {Object} ticket - Info tiket
+ * @param {Object} event - Info acara
+ * @returns {Object} - Status pengiriman email
+ */
+const sendTicketTransferConfirmation = async (email, name, ticket, event, recipient) => {
+  try {
+    const htmlContent = createTemplate('ticket-transfer-confirmation.html', {
+      name,
+      recipientName: recipient.name,
+      recipientEmail: recipient.email,
+      eventTitle: event.title,
+      eventDate: new Date(event.date).toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      eventTime: event.time,
+      ticketType: ticket.ticketTypeName,
+      appName: 'NesaVent',
+      year: new Date().getFullYear()
+    });
+    
+    const mailOptions = {
+      from: `"NesaVent" <${process.env.SMTP_USER}@mailtrap.io>`,
+      to: email,
+      subject: `Transfer tiket untuk ${event.title} berhasil`,
+      html: htmlContent
+    };
+    
+    const info = await transporter.sendMail(mailOptions);
+    logger.info('Email konfirmasi transfer tiket terkirim', {
+      messageId: info.messageId,
+      email,
+      ticketId: ticket._id
+    });
+    
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (error) {
+    logger.error('Gagal mengirim email konfirmasi transfer tiket', {
+      error: error.message,
+      email,
+      ticketId: ticket?._id
+    });
+    return {
+      success: false,
+      message: 'Gagal mengirim email konfirmasi transfer tiket'
+    };
+  }
+};
+
+module.exports = {
+  sendVerificationEmail,
+  sendTicketConfirmation,
+  sendPasswordResetEmail,
+  sendPaymentConfirmation,
+  sendTicketTransferNotification,
+  sendTicketTransferConfirmation,
+  sendEmail
+};
