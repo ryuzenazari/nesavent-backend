@@ -32,6 +32,11 @@ const testingRoutes = require('./routes/testingRoutes');
 const { measureMiddleware } = require('./services/performanceMonitoringService');
 const errorTracker = require('./services/errorTrackingService');
 const userRoutes = require('./routes/userRoutes');
+// Swagger Setup
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const swaggerDocument = YAML.load(path.join(__dirname, '../OpenAPI.yaml'));
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 app.set('view engine', 'ejs');
@@ -98,7 +103,8 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     description: 'Platform ticketing event yang dibuat oleh mahasiswa untuk komunitas kampus',
     disclaimer:
-      'NesaVent adalah platform independen dan tidak terafiliasi secara resmi dengan Universitas Negeri Surabaya (UNESA)'
+      'NesaVent adalah platform independen dan tidak terafiliasi secara resmi dengan Universitas Negeri Surabaya (UNESA)',
+    documentation: '/api-docs'
   });
 });
 app.use('/api/auth', authRoutes);
@@ -124,6 +130,14 @@ if (process.env.NODE_ENV !== 'production') {
   app.use('/api/testing', testingRoutes);
   logger.info('Testing routes diaktifkan dalam mode development');
 }
+
+// Menambahkan dokumentasi API Swagger
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customfavIcon: '',
+  customSiteTitle: 'NesaVent API Documentation'
+}));
 
 app.use((req, res, next) => {
   const error = new Error('Tidak ditemukan');
